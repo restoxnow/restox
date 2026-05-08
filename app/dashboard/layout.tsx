@@ -36,7 +36,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <UserProvider isAdmin={isAdmin} planTier={planTier}>
-    <div className="flex h-screen overflow-hidden bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-rx-navy">
       <InactivityTimer />
       <Sidebar
         userName={userName}
@@ -47,15 +47,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-14 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0">
+        <header className="h-14 bg-white dark:bg-[#16213E] border-b border-gray-100 dark:border-white/10 flex items-center justify-between px-6 shrink-0">
           <div className="relative">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
               placeholder="Search products, retailers…"
-              className="pl-9 pr-4 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                w-60 font-body placeholder:text-gray-400"
+              className="pl-9 pr-4 py-1.5 text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10
+                rounded-lg focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+                w-60 font-body placeholder:text-gray-400 dark:placeholder:text-gray-600 dark:text-white"
             />
           </div>
           <NotificationsBell />

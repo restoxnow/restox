@@ -123,7 +123,7 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
 
       {/* Plan badge */}
       {!collapsed && (
-        <div className="px-4 py-3 border-t border-rx-navy-lighter">
+        <div className="px-4 py-3 border-t border-rx-navy-lighter dark:border-white/10">
           <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${PLAN_STYLES[planTier] ?? PLAN_STYLES.free}`}>
             {planLabel}
           </span>
@@ -131,7 +131,7 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
       )}
 
       {/* User row */}
-      <div className={`flex items-center gap-3 px-4 py-4 border-t border-rx-navy-lighter ${collapsed ? 'justify-center' : ''}`}>
+      <div className={`flex items-center gap-3 px-4 py-4 border-t border-rx-navy-lighter dark:border-white/10 ${collapsed ? 'justify-center' : ''}`}>
         {avatarUrl ? (
           <img src={avatarUrl} alt={userName ?? 'User'} className="w-8 h-8 rounded-full object-cover shrink-0" />
         ) : (

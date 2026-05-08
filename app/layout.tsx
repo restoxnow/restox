@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Sora, Plus_Jakarta_Sans } from 'next/font/google'
+import { Providers } from '@/components/Providers'
 import './globals.css'
 
 const sora = Sora({
@@ -73,8 +74,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className={`${sora.variable} ${jakarta.variable}`}>
-      <body className="font-body antialiased">{children}</body>
+    <html lang="en" className={`${sora.variable} ${jakarta.variable}`} suppressHydrationWarning>
+      <body className="font-body antialiased">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   )
 }

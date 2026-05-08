@@ -28,7 +28,6 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
 
   const handleSearch = () => {
     if (!searchQuery.trim()) return
-    // Mock search — returns filtered results based on query
     setSearchResults(
       MOCK_SEARCH_RESULTS.filter(r =>
         r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -70,7 +69,6 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      // Parse a product name from the URL path as a best-effort label
       let parsedName = 'Product from URL'
       try {
         const url = new URL(productUrl)
@@ -105,19 +103,23 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
     { id: 'history', label: 'From History', icon: Package },
   ]
 
+  const inputCls = `w-full border rounded-xl text-sm font-body
+    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+    border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-500`
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-white dark:bg-[#16213E] rounded-2xl w-full max-w-md shadow-2xl dark:shadow-black/60">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <span className="font-heading font-semibold text-rx-navy">Add a Product</span>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
+          <span className="font-heading font-semibold text-rx-navy dark:text-white">Add a Product</span>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X size={18} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-gray-100 dark:border-white/10">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -125,7 +127,7 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium font-body transition-colors border-b-2
                 ${method === id
                   ? 'border-rx-orange text-rx-orange'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
+                  : 'border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                 }`}
             >
               <Icon size={13} />{label}
@@ -139,16 +141,14 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
             <div className="space-y-4">
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleSearch()}
                     placeholder="Search for a product…"
-                    className="w-full pl-9 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                      focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                      placeholder:text-gray-300"
+                    className={`${inputCls} pl-9 pr-4 py-2.5 placeholder:text-gray-300 dark:placeholder:text-gray-600`}
                   />
                 </div>
                 <button
@@ -160,12 +160,12 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
               </div>
 
               {searchResults.length > 0 && (
-                <div className="border border-gray-100 rounded-xl divide-y divide-gray-50">
+                <div className="border border-gray-100 dark:border-white/10 rounded-xl divide-y divide-gray-50 dark:divide-white/5">
                   {searchResults.map(r => (
                     <div key={r.name} className="flex items-center gap-3 px-4 py-3">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-rx-navy font-body truncate">{r.name}</p>
-                        <p className="text-xs text-gray-400 font-body">{r.retailer} · {r.category}</p>
+                        <p className="text-sm font-medium text-rx-navy dark:text-white font-body truncate">{r.name}</p>
+                        <p className="text-xs text-gray-400 dark:text-gray-500 font-body">{r.retailer} · {r.category}</p>
                       </div>
                       <button
                         onClick={() => handleAddFromSearch(r)}
@@ -180,13 +180,13 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
               )}
 
               {searchResults.length === 0 && searchQuery && (
-                <p className="text-sm text-gray-400 font-body text-center py-4">
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-body text-center py-4">
                   No results found. Try a different search term.
                 </p>
               )}
 
               {error && <p className="text-red-500 text-xs font-body">{error}</p>}
-              <p className="text-xs text-gray-400 font-body text-center">
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-body text-center">
                 Showing sample results — full product search coming soon.
               </p>
             </div>
@@ -196,7 +196,7 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
           {method === 'url' && (
             <form onSubmit={handleAddFromUrl} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
                   Product URL
                 </label>
                 <input
@@ -204,11 +204,9 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
                   value={productUrl}
                   onChange={e => setProductUrl(e.target.value)}
                   placeholder="https://amazon.com/dp/..."
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                    placeholder:text-gray-300"
+                  className={`${inputCls} px-4 py-2.5 placeholder:text-gray-300 dark:placeholder:text-gray-600`}
                 />
-                <p className="text-xs text-gray-400 font-body mt-1.5">
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-1.5">
                   Paste any product link from Amazon, Walmart, Target, and more.
                 </p>
               </div>
@@ -230,11 +228,11 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
           {/* History tab */}
           {method === 'history' && (
             <div className="flex flex-col items-center text-center py-6">
-              <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-                <Store size={22} className="text-gray-400" />
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 flex items-center justify-center mb-3">
+                <Store size={22} className="text-gray-400 dark:text-gray-500" />
               </div>
-              <p className="font-heading font-semibold text-rx-navy mb-1">No purchase history yet</p>
-              <p className="text-sm text-gray-400 font-body max-w-xs">
+              <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">No purchase history yet</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-body max-w-xs">
                 Connect a retailer to see your purchase history and add repeat purchases with one click.
               </p>
               <a

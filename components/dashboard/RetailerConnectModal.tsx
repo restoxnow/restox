@@ -47,27 +47,31 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
   }
 
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'oauth',       label: 'OAuth',            icon: Zap },
-    { id: 'extension',   label: 'Browser Extension',icon: Puzzle },
-    { id: 'credentials', label: 'Credentials',      icon: KeyRound },
+    { id: 'oauth',       label: 'OAuth',             icon: Zap },
+    { id: 'extension',   label: 'Browser Extension', icon: Puzzle },
+    { id: 'credentials', label: 'Credentials',       icon: KeyRound },
   ]
+
+  const inputCls = `w-full px-4 py-2.5 border rounded-xl text-sm font-body
+    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+    border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-300`
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+      <div className="bg-white dark:bg-[#16213E] rounded-2xl w-full max-w-md shadow-2xl dark:shadow-black/60">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
           <div className="flex items-center gap-3">
             <span className="text-2xl">{retailer.emoji}</span>
-            <span className="font-heading font-semibold text-rx-navy">Connect {retailer.name}</span>
+            <span className="font-heading font-semibold text-rx-navy dark:text-white">Connect {retailer.name}</span>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X size={18} />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-gray-100">
+        <div className="flex border-b border-gray-100 dark:border-white/10">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -75,7 +79,7 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
               className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-medium font-body transition-colors border-b-2
                 ${tab === id
                   ? 'border-rx-orange text-rx-orange'
-                  : 'border-transparent text-gray-400 hover:text-gray-600'
+                  : 'border-transparent text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
                 }`}
             >
               <Icon size={13} />{label}
@@ -87,11 +91,11 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
         <div className="px-6 py-6">
           {tab === 'oauth' && (
             <div className="flex flex-col items-center text-center py-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center mb-3">
-                <Zap size={22} className="text-blue-500" />
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-3">
+                <Zap size={22} className="text-blue-500 dark:text-blue-400" />
               </div>
-              <p className="font-heading font-semibold text-rx-navy mb-1">OAuth Integration</p>
-              <p className="text-sm text-gray-400 font-body">
+              <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">OAuth Integration</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
                 Coming Soon — OAuth integration with {retailer.name} is pending approval.
                 This will be the most secure connection method.
               </p>
@@ -100,11 +104,11 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
 
           {tab === 'extension' && (
             <div className="flex flex-col items-center text-center py-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center mb-3">
-                <Puzzle size={22} className="text-purple-500" />
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center mb-3">
+                <Puzzle size={22} className="text-purple-500 dark:text-purple-400" />
               </div>
-              <p className="font-heading font-semibold text-rx-navy mb-1">Browser Extension</p>
-              <p className="text-sm text-gray-400 font-body">
+              <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">Browser Extension</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
                 Download Extension — Coming Soon. The Restox browser extension will
                 automatically detect and sync your purchases from {retailer.name}.
               </p>
@@ -113,11 +117,11 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
 
           {tab === 'credentials' && (
             <form onSubmit={handleCredentialSave} className="space-y-4">
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 font-body">
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 font-body">
                 🔒 Your credentials are encrypted in transit and never stored in plain text.
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
                   {retailer.name} username or email
                 </label>
                 <input
@@ -125,13 +129,11 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
                   value={username}
                   onChange={e => setUsername(e.target.value)}
                   placeholder="your@email.com"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                    placeholder:text-gray-300"
+                  className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
                   Password
                 </label>
                 <input
@@ -139,9 +141,7 @@ export default function RetailerConnectModal({ retailer, onClose, onConnected }:
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                    placeholder:text-gray-300"
+                  className={inputCls}
                 />
               </div>
               {error && <p className="text-red-500 text-xs font-body">{error}</p>}

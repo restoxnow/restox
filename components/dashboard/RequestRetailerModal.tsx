@@ -42,17 +42,21 @@ export default function RequestRetailerModal({ onClose }: Props) {
     }
   }
 
+  const inputCls = `w-full px-4 py-2.5 border rounded-xl text-sm font-body
+    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+    border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-300`
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+      <div className="bg-white dark:bg-[#16213E] rounded-2xl w-full max-w-md shadow-2xl dark:shadow-black/60">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-rx-orange-light flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-rx-orange-light dark:bg-rx-orange/10 flex items-center justify-center">
               <Store size={16} className="text-rx-orange" />
             </div>
-            <span className="font-heading font-semibold text-rx-navy">Request a Retailer</span>
+            <span className="font-heading font-semibold text-rx-navy dark:text-white">Request a Retailer</span>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -60,11 +64,11 @@ export default function RequestRetailerModal({ onClose }: Props) {
         <div className="px-6 py-6">
           {submitted ? (
             <div className="flex flex-col items-center text-center py-4">
-              <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mb-3">
-                <CheckCircle size={24} className="text-green-500" />
+              <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center mb-3">
+                <CheckCircle size={24} className="text-green-500 dark:text-green-400" />
               </div>
-              <p className="font-heading font-semibold text-rx-navy mb-1">Request submitted!</p>
-              <p className="text-sm text-gray-400 font-body mb-5">
+              <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">Request submitted!</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-body mb-5">
                 Thanks for the suggestion. We review all retailer requests and prioritize by demand.
               </p>
               <button
@@ -77,7 +81,7 @@ export default function RequestRetailerModal({ onClose }: Props) {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
                   Retailer name <span className="text-red-400">*</span>
                 </label>
                 <input
@@ -85,37 +89,31 @@ export default function RequestRetailerModal({ onClose }: Props) {
                   value={retailerName}
                   onChange={e => setRetailerName(e.target.value)}
                   placeholder="e.g. Chewy, IKEA, Petco"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                    placeholder:text-gray-300"
+                  className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
-                  Website URL <span className="text-gray-300">(optional)</span>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
+                  Website URL <span className="text-gray-300 dark:text-gray-600">(optional)</span>
                 </label>
                 <input
                   type="url"
                   value={websiteUrl}
                   onChange={e => setWebsiteUrl(e.target.value)}
                   placeholder="https://example.com"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                    placeholder:text-gray-300"
+                  className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
-                  Why do you want this retailer? <span className="text-gray-300">(optional)</span>
+                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
+                  Why do you want this retailer? <span className="text-gray-300 dark:text-gray-600">(optional)</span>
                 </label>
                 <textarea
                   value={reason}
                   onChange={e => setReason(e.target.value)}
                   placeholder="I regularly order from here and would love to automate it…"
                   rows={3}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                    placeholder:text-gray-300 resize-none"
+                  className={`${inputCls} resize-none`}
                 />
               </div>
               {error && <p className="text-red-500 text-xs font-body">{error}</p>}
