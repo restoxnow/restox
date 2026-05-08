@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { User, Bell, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper } from 'lucide-react'
+import { User, Bell, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper, CheckCircle, Loader2 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 const SECTIONS = [
@@ -30,7 +30,35 @@ const THEME_OPTIONS: { value: string; label: string; icon: React.ElementType }[]
   { value: 'system', label: 'System', icon: Monitor },
 ]
 
+const US_STATES = [
+  ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],['CA','California'],
+  ['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],['FL','Florida'],['GA','Georgia'],
+  ['HI','Hawaii'],['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],
+  ['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],['MD','Maryland'],
+  ['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],['MS','Mississippi'],['MO','Missouri'],
+  ['MT','Montana'],['NE','Nebraska'],['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],
+  ['NM','New Mexico'],['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],
+  ['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],['SC','South Carolina'],
+  ['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],['UT','Utah'],['VT','Vermont'],
+  ['VA','Virginia'],['WA','Washington'],['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming'],
+  ['DC','Washington D.C.'],
+]
+
+function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 3000)
+    return () => clearTimeout(t)
+  }, [onDone])
+  return (
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 bg-rx-navy dark:bg-white text-white dark:text-rx-navy px-4 py-3 rounded-xl shadow-xl text-sm font-body font-medium animate-in slide-in-from-bottom-4">
+      <CheckCircle size={16} className="text-green-400 dark:text-green-600 shrink-0" />
+      {message}
+    </div>
+  )
+}
+
 function SettingsContent() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const tabParam = searchParams.get('tab') as SectionId | null
   const showWelcome = searchParams.get('welcome') === 'true'
@@ -42,11 +70,73 @@ function SettingsContent() {
   const { theme, setTheme } = useTheme()
   const supabase = createSupabaseBrowserClient()
 
+  // Profile state
+  const [fullName, setFullName] = useState('')
+  const [email, setEmail] = useState('')
+  const [street, setStreet] = useState('')
+  const [city, setCity] = useState('')
+  const [stateAbbr, setStateAbbr] = useState('')
+  const [zip, setZip] = useState('')
+  const [householdSize, setHouseholdSize] = useState('1')
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState('')
+
   useEffect(() => {
     if (tabParam && SECTIONS.some(s => s.id === tabParam)) {
       setSection(tabParam)
     }
   }, [tabParam])
+
+  useEffect(() => {
+    async function loadProfile() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setEmail(user.email ?? '')
+      const { data } = await supabase
+        .from('users')
+        .select('full_name, shipping_addresses, household_size')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        setFullName(data.full_name ?? '')
+        setHouseholdSize(String(data.household_size ?? 1))
+        const addrs = data.shipping_addresses
+        const addr = Array.isArray(addrs) ? addrs[0] : addrs
+        if (addr && typeof addr === 'object') {
+          setStreet((addr as any).street ?? '')
+          setCity((addr as any).city ?? '')
+          setStateAbbr((addr as any).state ?? '')
+          setZip((addr as any).zip ?? '')
+        }
+      }
+    }
+    loadProfile()
+  }, [supabase])
+
+  const handleSaveProfile = async () => {
+    setSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+      await supabase.from('users').upsert({
+        id: user.id,
+        full_name: fullName,
+        shipping_addresses: [{ street, city, state: stateAbbr, zip }],
+        household_size: parseInt(householdSize) || 1,
+      }, { onConflict: 'id' })
+
+      if (showWelcome) {
+        setToast('Profile saved! Welcome to Restox.')
+        setTimeout(() => router.push('/dashboard'), 1800)
+      } else {
+        setToast('Profile saved!')
+      }
+    } catch (err: any) {
+      setToast('Error: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const handleThemeChange = async (newTheme: string) => {
     setTheme(newTheme)
@@ -64,6 +154,8 @@ function SettingsContent() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      {toast && <Toast message={toast} onDone={() => setToast('')} />}
+
       <div>
         <h1 className="text-2xl font-heading font-bold text-rx-navy dark:text-white">Settings</h1>
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-body">Manage your account, billing, and preferences</p>
@@ -108,31 +200,92 @@ function SettingsContent() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">Full name</label>
-                  <input type="text" placeholder="Your name" className={inputCls} />
+                  <input
+                    type="text"
+                    placeholder="Your name"
+                    value={fullName}
+                    onChange={e => setFullName(e.target.value)}
+                    className={inputCls}
+                  />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">Email</label>
                   <input
                     type="email"
-                    placeholder="you@example.com"
-                    disabled
-                    className={`${inputCls} border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5 text-gray-400 cursor-not-allowed`}
+                    value={email}
+                    readOnly
+                    className={`${inputCls} bg-gray-50 dark:bg-white/5 text-gray-400 dark:text-gray-500 cursor-not-allowed select-none`}
+                  />
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body mt-1">Email cannot be changed here.</p>
+                </div>
+
+                {/* Shipping address — split fields */}
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">Street address</label>
+                  <input
+                    type="text"
+                    placeholder="123 Main St"
+                    value={street}
+                    onChange={e => setStreet(e.target.value)}
+                    className={inputCls}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">Shipping address</label>
-                  <input type="text" placeholder="123 Main St, City, State, ZIP" className={inputCls} />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">City</label>
+                    <input
+                      type="text"
+                      placeholder="City"
+                      value={city}
+                      onChange={e => setCity(e.target.value)}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">ZIP code</label>
+                    <input
+                      type="text"
+                      placeholder="12345"
+                      value={zip}
+                      onChange={e => setZip(e.target.value)}
+                      maxLength={10}
+                      className={inputCls}
+                    />
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">Household size</label>
-                  <select className={`${inputCls} bg-white dark:bg-[#16213E]`}>
-                    {[1,2,3,4,5,'6+'].map(n => (
-                      <option key={n}>{n} {n === 1 ? 'person' : 'people'}</option>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">State</label>
+                  <select
+                    value={stateAbbr}
+                    onChange={e => setStateAbbr(e.target.value)}
+                    className={`${inputCls} bg-white dark:bg-[#16213E]`}
+                  >
+                    <option value="">Select state…</option>
+                    {US_STATES.map(([abbr, name]) => (
+                      <option key={abbr} value={abbr}>{name}</option>
                     ))}
                   </select>
                 </div>
-                <button className="px-5 py-2 bg-rx-orange text-white text-sm font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body">
-                  Save changes
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">Household size</label>
+                  <select
+                    value={householdSize}
+                    onChange={e => setHouseholdSize(e.target.value)}
+                    className={`${inputCls} bg-white dark:bg-[#16213E]`}
+                  >
+                    {[1,2,3,4,5,'6+'].map(n => (
+                      <option key={n} value={String(n)}>{n} {n === 1 ? 'person' : 'people'}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  className="px-5 py-2 bg-rx-orange text-white text-sm font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body disabled:opacity-60 flex items-center gap-2"
+                >
+                  {saving && <Loader2 size={14} className="animate-spin" />}
+                  {saving ? 'Saving…' : 'Save changes'}
                 </button>
               </div>
             </div>
