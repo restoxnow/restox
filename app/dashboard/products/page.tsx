@@ -5,10 +5,11 @@ import Image from 'next/image'
 import Link from 'next/link'
 import {
   Plus, Package, Search, X, ExternalLink,
-  CalendarClock, Trash2, AlertTriangle, ChevronDown, Loader2,
+  CalendarClock, Trash2, AlertTriangle, ChevronDown, Loader2, BarChart2,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import AddProductModal from '@/components/dashboard/AddProductModal'
+import PriceCompareModal from '@/components/dashboard/PriceCompareModal'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,6 +199,14 @@ function AddScheduleModal({ product, onClose, onCreated }: {
         notification_channel: 'email',
       })
       if (err) throw err
+
+      // Seed initial price data in background (fire and forget)
+      fetch('/api/price-compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_id: product.id }),
+      }).catch(() => {})
+
       onCreated(product.id)
       onClose()
     } catch (err: any) {
@@ -289,6 +298,7 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showAddSchedule, setShowAddSchedule] = useState(false)
+  const [showPriceCompare, setShowPriceCompare] = useState(false)
 
   const saveQty = async () => {
     if (qty === product.reorder_quantity) return
@@ -399,6 +409,14 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
             </button>
           )}
 
+          {/* Compare Prices */}
+          <button
+            onClick={() => setShowPriceCompare(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-body"
+          >
+            <BarChart2 size={12} /> Compare Prices
+          </button>
+
           {/* Delete */}
           <div className="relative ml-auto">
             <button
@@ -423,6 +441,16 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
           product={product}
           onClose={() => setShowAddSchedule(false)}
           onCreated={onScheduleCreated}
+        />
+      )}
+
+      {showPriceCompare && (
+        <PriceCompareModal
+          product={product}
+          onClose={() => setShowPriceCompare(false)}
+          onRetailerSwitched={(retailerId, retailerName) => {
+            onUpdate(product.id, { retailers: { id: retailerId, name: retailerName } })
+          }}
         />
       )}
     </>

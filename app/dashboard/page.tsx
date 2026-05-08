@@ -24,9 +24,16 @@ interface ScheduleRow {
   status: string
   created_at: string
   products: {
+    id: string
     name: string
-    retailers: { name: string } | null
+    retailers: { id: string; name: string } | null
   } | null
+}
+
+interface PriceComparison {
+  product_id: string
+  retailer_id: string | null
+  price: number
 }
 
 // ---------------------------------------------------------------------------
@@ -93,6 +100,7 @@ export default function DashboardPage() {
 
   const [schedules, setSchedules] = useState<ScheduleRow[]>([])
   const [loadingSchedules, setLoadingSchedules] = useState(true)
+  const [savingsMap, setSavingsMap] = useState<Record<string, number>>({})
 
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -146,14 +154,44 @@ export default function DashboardPage() {
       .from('purchase_schedules')
       .select(`
         id, frequency, status, created_at,
-        products ( name, retailers ( name ) )
+        products ( id, name, retailers ( id, name ) )
       `)
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(10)
 
-    setSchedules((data as unknown as ScheduleRow[]) ?? [])
+    const rows = (data as unknown as ScheduleRow[]) ?? []
+    setSchedules(rows)
+
+    // Fetch price comparisons to compute savings badges
+    const productIds = rows.map(s => s.products?.id).filter(Boolean) as string[]
+    if (productIds.length > 0) {
+      const { data: priceData } = await supabase
+        .from('price_comparisons')
+        .select('product_id, retailer_id, price')
+        .in('product_id', productIds)
+        .eq('user_id', user.id)
+
+      if (priceData && priceData.length > 0) {
+        const prices = priceData as PriceComparison[]
+        const newSavings: Record<string, number> = {}
+        for (const s of rows) {
+          const productId = s.products?.id
+          if (!productId) continue
+          const productPrices = prices.filter(p => p.product_id === productId)
+          if (productPrices.length < 2) continue
+          const currentRetailerId = s.products?.retailers?.id
+          const currentPrice = productPrices.find(p => p.retailer_id === currentRetailerId)?.price
+          if (!currentPrice) continue
+          const lowestPrice = Math.min(...productPrices.map(p => p.price))
+          const savings = Math.round((currentPrice - lowestPrice) * 100) / 100
+          if (savings > 0.01) newSavings[s.id] = savings
+        }
+        setSavingsMap(newSavings)
+      }
+    }
+
     setLoadingSchedules(false)
   }, [supabase])
 
@@ -271,9 +309,16 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-rx-navy dark:text-white font-body truncate">
-                      {productName}
-                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-rx-navy dark:text-white font-body truncate">
+                        {productName}
+                      </p>
+                      {savingsMap[s.id] && (
+                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-500 border border-amber-200 dark:border-amber-800/30 font-body shrink-0">
+                          💰 Save ${savingsMap[s.id].toFixed(2)}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
                       {retailerName} · {FREQ_LABEL[s.frequency] ?? s.frequency}
                     </p>
