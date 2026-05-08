@@ -62,6 +62,13 @@ export default function RequestRetailerModal({ onClose }: Props) {
         </div>
 
         <div className="px-6 py-6">
+          {!submitted && (
+            <div className="mb-5 px-4 py-3 rounded-xl bg-orange-50 dark:bg-rx-orange/10 border border-orange-100 dark:border-rx-orange/20">
+              <p className="text-xs text-orange-800 dark:text-orange-300 font-body leading-relaxed">
+                Requested retailers are reviewed weekly. You&apos;ll be notified at your account email when your retailer is added.
+              </p>
+            </div>
+          )}
           {submitted ? (
             <div className="flex flex-col items-center text-center py-4">
               <div className="w-12 h-12 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center mb-3">

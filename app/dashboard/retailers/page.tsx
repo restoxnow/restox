@@ -175,6 +175,26 @@ export default function RetailersPage() {
         )}
       </div>
 
+      {/* Request a Retailer banner */}
+      {!hasNoResults && (
+        <div className="flex items-center justify-between gap-4 px-5 py-4 rounded-xl bg-orange-50 dark:bg-rx-orange/10 border border-orange-200 dark:border-rx-orange/20">
+          <div>
+            <p className="text-sm font-semibold text-rx-navy dark:text-white font-heading leading-tight">
+              Don&apos;t see your retailer?
+            </p>
+            <p className="text-xs text-orange-700 dark:text-orange-300 font-body mt-0.5">
+              We add new retailers every week based on requests.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowRequestModal(true)}
+            className="shrink-0 px-4 py-2 bg-rx-orange hover:bg-rx-orange-dark text-white text-sm font-semibold rounded-xl transition-colors font-body whitespace-nowrap"
+          >
+            Request a Retailer
+          </button>
+        </div>
+      )}
+
       {/* No-results state */}
       {hasNoResults && (
         <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none py-14 flex flex-col items-center text-center">
@@ -258,21 +278,6 @@ export default function RetailersPage() {
           </div>
         )
       })}
-
-      {/* Global request CTA */}
-      {!hasNoResults && (
-        <div className="pt-2 pb-2 border-t border-gray-100 dark:border-white/10 text-center">
-          <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
-            Don&apos;t see your retailer?{' '}
-            <button
-              onClick={() => setShowRequestModal(true)}
-              className="font-semibold text-rx-orange hover:text-rx-orange-dark transition-colors"
-            >
-              Request it →
-            </button>
-          </p>
-        </div>
-      )}
 
       {/* Modals */}
       {selectedRetailer && (
