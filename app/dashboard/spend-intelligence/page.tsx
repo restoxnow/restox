@@ -2,14 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Lock, CreditCard, Mail, Camera, PieChart, RefreshCw, Plus, Building2, ChevronDown, X } from 'lucide-react'
+import { Lock, CreditCard, Mail, Camera, PieChart, RefreshCw, Plus, Building2, ChevronDown, X, CheckCircle } from 'lucide-react'
 import { useUser } from '@/contexts/UserContext'
 import { usePlaidLink } from 'react-plaid-link'
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import SpendAddModal from '@/components/dashboard/SpendAddModal'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-interface RecurringItem {
+export interface RecurringItem {
   merchant: string
   occurrences: number
   avgAmount: number
@@ -19,7 +21,7 @@ interface RecurringItem {
 }
 
 // ---------------------------------------------------------------------------
-// Paywall sample rows (blurred, non-interactive)
+// Paywall sample rows
 // ---------------------------------------------------------------------------
 const SAMPLE_ROWS = [
   { id: 1, product: 'Organic Coffee Beans', source: 'email',   spend: '$18.99/mo avg'  },
@@ -35,6 +37,26 @@ const FREQ_LABEL: Record<string, string> = {
   monthly: 'Monthly',
   quarterly: 'Quarterly',
   occasional: 'Occasional',
+}
+
+// ---------------------------------------------------------------------------
+// Toast
+// ---------------------------------------------------------------------------
+function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 4000)
+    return () => clearTimeout(t)
+  }, [onDismiss])
+
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-5 py-3 bg-green-600 text-white text-sm font-semibold rounded-xl shadow-lg font-body animate-fade-in">
+      <CheckCircle size={16} />
+      {message}
+      <button onClick={onDismiss} className="ml-1 opacity-70 hover:opacity-100 transition-opacity">
+        <X size={14} />
+      </button>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -71,9 +93,7 @@ function LinkBankButton({ onSuccess }: { onSuccess: () => void }) {
         }),
       })
       onSuccess()
-    } catch {
-      // non-fatal
-    }
+    } catch { /* non-fatal */ }
   }, [onSuccess])
 
   const { open, ready } = usePlaidLink({ token: linkToken ?? '', onSuccess: handlePlaidSuccess })
@@ -103,15 +123,16 @@ function LinkBankButton({ onSuccess }: { onSuccess: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Recurring purchase card — with fade-out on ignore
+// Recurring purchase card
 // ---------------------------------------------------------------------------
 interface RecurringCardProps {
   item: RecurringItem
+  isAdded: boolean
   onIgnore: (merchant: string) => void
+  onAdd: (item: RecurringItem) => void
 }
 
-function RecurringCard({ item, onIgnore }: RecurringCardProps) {
-  const [added, setAdded] = useState(false)
+function RecurringCard({ item, isAdded, onIgnore, onAdd }: RecurringCardProps) {
   const [exiting, setExiting] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -140,23 +161,28 @@ function RecurringCard({ item, onIgnore }: RecurringCardProps) {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={() => setAdded(true)}
-            disabled={added}
+            onClick={() => !isAdded && onAdd(item)}
+            disabled={isAdded}
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors font-body ${
-              added
+              isAdded
                 ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 cursor-default'
                 : 'bg-rx-orange-light dark:bg-rx-orange/10 text-rx-orange hover:bg-orange-100 dark:hover:bg-rx-orange/20'
             }`}
           >
-            {added ? 'Added ✓' : <><Plus size={12} />Add to Restox</>}
+            {isAdded
+              ? <><CheckCircle size={12} />Added</>
+              : <><Plus size={12} />Add to Restox</>
+            }
           </button>
-          <button
-            onClick={handleIgnore}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-600 dark:hover:text-gray-300 transition-colors font-body"
-          >
-            <X size={12} />
-            Ignore
-          </button>
+          {!isAdded && (
+            <button
+              onClick={handleIgnore}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-600 dark:hover:text-gray-300 transition-colors font-body"
+            >
+              <X size={12} />
+              Ignore
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -164,7 +190,7 @@ function RecurringCard({ item, onIgnore }: RecurringCardProps) {
 }
 
 // ---------------------------------------------------------------------------
-// Ignored merchant row in the collapsible section
+// Ignored merchant row
 // ---------------------------------------------------------------------------
 function IgnoredRow({ merchant, onRestore }: { merchant: string; onRestore: (m: string) => void }) {
   return (
@@ -190,6 +216,8 @@ function IgnoredRow({ merchant, onRestore }: { merchant: string; onRestore: (m: 
 // ---------------------------------------------------------------------------
 export default function SpendIntelligencePage() {
   const { hasProAccess } = useUser()
+  const supabase = createSupabaseBrowserClient()
+
   const [recurring, setRecurring] = useState<RecurringItem[]>([])
   const [connected, setConnected] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -200,7 +228,14 @@ export default function SpendIntelligencePage() {
   const [ignored, setIgnored] = useState<string[]>([])
   const [ignoredOpen, setIgnoredOpen] = useState(false)
 
-  // Load ignored merchants from server
+  // Added state — seeded from products table so "Added" persists across sessions
+  const [addedMerchants, setAddedMerchants] = useState<Set<string>>(new Set())
+
+  // Modal + toast
+  const [addingItem, setAddingItem] = useState<RecurringItem | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
+
+  // Load ignored merchants
   useEffect(() => {
     if (!hasProAccess) return
     fetch('/api/user/ignored-merchants')
@@ -208,6 +243,22 @@ export default function SpendIntelligencePage() {
       .then(d => { if (Array.isArray(d.ignored_merchants)) setIgnored(d.ignored_merchants) })
       .catch(() => {})
   }, [hasProAccess])
+
+  // Load already-added merchants from products table
+  useEffect(() => {
+    if (!hasProAccess) return
+    async function loadAdded() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data } = await supabase
+        .from('products')
+        .select('name')
+        .eq('user_id', user.id)
+        .eq('category', 'spend-intelligence')
+      if (data) setAddedMerchants(new Set(data.map(p => p.name)))
+    }
+    loadAdded()
+  }, [hasProAccess, supabase])
 
   const persistIgnored = useCallback((merchants: string[]) => {
     fetch('/api/user/ignored-merchants', {
@@ -232,6 +283,11 @@ export default function SpendIntelligencePage() {
       return next
     })
   }, [persistIgnored])
+
+  const handleAdded = useCallback((merchant: string) => {
+    setAddedMerchants(prev => new Set([...prev, merchant]))
+    setToast('Added to Restox! Check your Schedules page.')
+  }, [])
 
   const fetchRecurring = useCallback(async () => {
     setLoading(true)
@@ -258,10 +314,7 @@ export default function SpendIntelligencePage() {
 
   const visible = recurring.filter(r => !ignored.includes(r.merchant))
   const ignoredItems = recurring.filter(r => ignored.includes(r.merchant))
-
-  // Ignored merchants that have no matching recurring entry (from a previous session)
   const ghostIgnored = ignored.filter(m => !recurring.some(r => r.merchant === m))
-
   const allIgnoredMerchants = [...ignoredItems.map(i => i.merchant), ...ghostIgnored]
 
   return (
@@ -354,10 +407,7 @@ export default function SpendIntelligencePage() {
                 Connect a retailer or link your bank account to surface products you buy repeatedly.
               </p>
               <div className="flex flex-wrap gap-3 justify-center">
-                <Link
-                  href="/dashboard/retailers"
-                  className="px-5 py-2.5 bg-rx-orange text-white text-sm font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body"
-                >
+                <Link href="/dashboard/retailers" className="px-5 py-2.5 bg-rx-orange text-white text-sm font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body">
                   Connect a Retailer
                 </Link>
                 <LinkBankButton onSuccess={handlePlaidSuccess} />
@@ -365,21 +415,7 @@ export default function SpendIntelligencePage() {
             </div>
           )}
 
-          {/* Bank connected — no visible suggestions (all ignored or none found) */}
-          {!loading && fetched && connected && visible.length === 0 && allIgnoredMerchants.length === 0 && (
-            <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-16 flex flex-col items-center text-center">
-              <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
-                <PieChart size={26} className="text-blue-500 dark:text-blue-400" />
-              </div>
-              <h2 className="font-heading font-semibold text-rx-navy dark:text-white text-base mb-1">No recurring purchases found</h2>
-              <p className="text-sm text-gray-400 dark:text-gray-500 font-body max-w-xs mb-4">
-                Your bank is connected. We didn&apos;t find any clear repeat purchases in the last 24 months.
-              </p>
-              <LinkBankButton onSuccess={handlePlaidSuccess} />
-            </div>
-          )}
-
-          {/* All suggestions ignored empty state */}
+          {/* All ignored empty state */}
           {!loading && fetched && connected && visible.length === 0 && allIgnoredMerchants.length > 0 && (
             <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-12 flex flex-col items-center text-center">
               <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center mb-4">
@@ -393,7 +429,21 @@ export default function SpendIntelligencePage() {
             </div>
           )}
 
-          {/* Recurring purchases list */}
+          {/* Nothing found (no ignored either) */}
+          {!loading && fetched && connected && visible.length === 0 && allIgnoredMerchants.length === 0 && (
+            <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-16 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
+                <PieChart size={26} className="text-blue-500 dark:text-blue-400" />
+              </div>
+              <h2 className="font-heading font-semibold text-rx-navy dark:text-white text-base mb-1">No recurring purchases found</h2>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-body max-w-xs mb-4">
+                Your bank is connected. We didn&apos;t find any clear repeat purchases in the last 24 months.
+              </p>
+              <LinkBankButton onSuccess={handlePlaidSuccess} />
+            </div>
+          )}
+
+          {/* Recurring list */}
           {!loading && visible.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -413,13 +463,19 @@ export default function SpendIntelligencePage() {
               </div>
               <div className="space-y-3">
                 {visible.map(item => (
-                  <RecurringCard key={item.merchant} item={item} onIgnore={handleIgnore} />
+                  <RecurringCard
+                    key={item.merchant}
+                    item={item}
+                    isAdded={addedMerchants.has(item.merchant)}
+                    onIgnore={handleIgnore}
+                    onAdd={setAddingItem}
+                  />
                 ))}
               </div>
             </div>
           )}
 
-          {/* Ignored suggestions — collapsible */}
+          {/* Ignored section */}
           {!loading && fetched && allIgnoredMerchants.length > 0 && (
             <div className="border border-gray-100 dark:border-white/10 rounded-xl overflow-hidden">
               <button
@@ -445,6 +501,18 @@ export default function SpendIntelligencePage() {
           )}
         </>
       )}
+
+      {/* Add to Restox modal */}
+      {addingItem && (
+        <SpendAddModal
+          item={addingItem}
+          onClose={() => setAddingItem(null)}
+          onAdded={handleAdded}
+        />
+      )}
+
+      {/* Success toast */}
+      {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   )
 }
