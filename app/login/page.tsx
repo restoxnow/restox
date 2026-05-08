@@ -2,10 +2,47 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Eye, EyeOff } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import Image from 'next/image'
 
 type Mode = 'login' | 'signup' | 'reset'
+
+function PasswordInput({
+  placeholder = 'Password',
+  value,
+  onChange,
+  required,
+}: {
+  placeholder?: string
+  value: string
+  onChange: (v: string) => void
+  required?: boolean
+}) {
+  const [show, setShow] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={show ? 'text' : 'password'}
+        placeholder={placeholder}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        required={required}
+        className="w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-xl text-sm font-body
+          focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+          placeholder:text-gray-400"
+      />
+      <button
+        type="button"
+        onClick={() => setShow(s => !s)}
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+        aria-label={show ? 'Hide password' : 'Show password'}
+      >
+        {show ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -13,6 +50,7 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -28,6 +66,12 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setMessage('')
+
+    if (mode === 'signup' && password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
     setLoading(true)
     try {
       if (mode === 'reset') {
@@ -52,6 +96,13 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const switchMode = (next: Mode) => {
+    setMode(next)
+    setError('')
+    setMessage('')
+    setConfirmPassword('')
   }
 
   return (
@@ -103,20 +154,35 @@ export default function LoginPage() {
                 focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
                 placeholder:text-gray-400"
             />
+
             {mode !== 'reset' && (
-              <input
-                type="password"
-                placeholder="Password"
+              <PasswordInput
                 value={password}
-                onChange={e => setPassword(e.target.value)}
+                onChange={setPassword}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
-                  focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-                  placeholder:text-gray-400"
               />
             )}
 
-            {error && <p className="text-red-500 text-xs font-body">{error}</p>}
+            {mode === 'signup' && (
+              <>
+                <PasswordInput
+                  placeholder="Confirm Password"
+                  value={confirmPassword}
+                  onChange={v => {
+                    setConfirmPassword(v)
+                    if (error === 'Passwords do not match') setError('')
+                  }}
+                  required
+                />
+                {error === 'Passwords do not match' && (
+                  <p className="text-red-500 text-xs font-body -mt-1">{error}</p>
+                )}
+              </>
+            )}
+
+            {error && error !== 'Passwords do not match' && (
+              <p className="text-red-500 text-xs font-body">{error}</p>
+            )}
             {message && <p className="text-green-600 text-xs font-body">{message}</p>}
 
             <button
@@ -132,16 +198,16 @@ export default function LoginPage() {
           <div className="mt-4 text-center space-y-1">
             {mode === 'login' && (
               <>
-                <button onClick={() => setMode('reset')} className="block w-full text-xs text-gray-400 hover:text-rx-orange font-body transition-colors">
+                <button onClick={() => switchMode('reset')} className="block w-full text-xs text-gray-400 hover:text-rx-orange font-body transition-colors">
                   Forgot password?
                 </button>
-                <button onClick={() => setMode('signup')} className="block w-full text-xs text-rx-blue hover:text-rx-blue-light font-body font-medium transition-colors">
+                <button onClick={() => switchMode('signup')} className="block w-full text-xs text-rx-blue hover:text-rx-blue-light font-body font-medium transition-colors">
                   Don&apos;t have an account? Sign up
                 </button>
               </>
             )}
             {(mode === 'signup' || mode === 'reset') && (
-              <button onClick={() => setMode('login')} className="text-xs text-rx-blue hover:text-rx-blue-light font-body font-medium transition-colors">
+              <button onClick={() => switchMode('login')} className="text-xs text-rx-blue hover:text-rx-blue-light font-body font-medium transition-colors">
                 Back to sign in
               </button>
             )}
