@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
-import { Lock, CreditCard, Mail, Camera, PieChart, RefreshCw, Plus, Building2 } from 'lucide-react'
+import { Lock, CreditCard, Mail, Camera, PieChart, RefreshCw, Plus, Building2, ChevronDown, X } from 'lucide-react'
 import { useUser } from '@/contexts/UserContext'
 import { usePlaidLink } from 'react-plaid-link'
 
@@ -29,8 +29,16 @@ const SAMPLE_ROWS = [
 const SOURCE_ICON: Record<string, React.ElementType> = { email: Mail, plaid: CreditCard, receipt: Camera }
 const SOURCE_LABEL: Record<string, string> = { email: 'Email parsing', plaid: 'Plaid bank link', receipt: 'Receipt OCR' }
 
+const FREQ_LABEL: Record<string, string> = {
+  weekly: 'Weekly',
+  'bi-weekly': 'Every 2 weeks',
+  monthly: 'Monthly',
+  quarterly: 'Quarterly',
+  occasional: 'Occasional',
+}
+
 // ---------------------------------------------------------------------------
-// Plaid Link wrapper — fetches a link token then opens Plaid Link
+// Plaid Link button
 // ---------------------------------------------------------------------------
 function LinkBankButton({ onSuccess }: { onSuccess: () => void }) {
   const [linkToken, setLinkToken] = useState<string | null>(null)
@@ -64,24 +72,17 @@ function LinkBankButton({ onSuccess }: { onSuccess: () => void }) {
       })
       onSuccess()
     } catch {
-      // Exchange failure is non-fatal — user can retry
+      // non-fatal
     }
   }, [onSuccess])
 
-  const { open, ready } = usePlaidLink({
-    token: linkToken ?? '',
-    onSuccess: handlePlaidSuccess,
-  })
+  const { open, ready } = usePlaidLink({ token: linkToken ?? '', onSuccess: handlePlaidSuccess })
 
   const handleClick = useCallback(async () => {
-    if (linkToken && ready) {
-      open()
-    } else {
-      await fetchToken()
-    }
+    if (linkToken && ready) open()
+    else await fetchToken()
   }, [linkToken, ready, open, fetchToken])
 
-  // Auto-open after token is fetched
   useEffect(() => {
     if (linkToken && ready) open()
   }, [linkToken, ready, open])
@@ -96,48 +97,89 @@ function LinkBankButton({ onSuccess }: { onSuccess: () => void }) {
         <Building2 size={16} />
         {tokenLoading ? 'Connecting…' : 'Link Bank Account'}
       </button>
-      {tokenError && (
-        <p className="text-xs text-red-500 font-body">{tokenError}</p>
-      )}
+      {tokenError && <p className="text-xs text-red-500 font-body">{tokenError}</p>}
     </div>
   )
 }
 
 // ---------------------------------------------------------------------------
-// Recurring purchase card
+// Recurring purchase card — with fade-out on ignore
 // ---------------------------------------------------------------------------
-function RecurringCard({ item }: { item: RecurringItem }) {
-  const [added, setAdded] = useState(false)
+interface RecurringCardProps {
+  item: RecurringItem
+  onIgnore: (merchant: string) => void
+}
 
-  const frequencyLabel: Record<string, string> = {
-    weekly: 'Weekly',
-    'bi-weekly': 'Every 2 weeks',
-    monthly: 'Monthly',
-    quarterly: 'Quarterly',
-    occasional: 'Occasional',
+function RecurringCard({ item, onIgnore }: RecurringCardProps) {
+  const [added, setAdded] = useState(false)
+  const [exiting, setExiting] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleIgnore = () => {
+    setExiting(true)
+    timerRef.current = setTimeout(() => onIgnore(item.merchant), 300)
   }
 
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current) }, [])
+
   return (
-    <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm p-4 flex items-start gap-4">
-      <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-        <CreditCard size={18} className="text-blue-600 dark:text-blue-400" />
+    <div
+      className={`transition-all duration-300 ease-in-out overflow-hidden ${
+        exiting ? 'opacity-0 max-h-0 mb-0' : 'opacity-100 max-h-40'
+      }`}
+    >
+      <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm p-4 flex items-start gap-4">
+        <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+          <CreditCard size={18} className="text-blue-600 dark:text-blue-400" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-rx-navy dark:text-white font-body truncate">{item.merchant}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
+            {FREQ_LABEL[item.frequency] ?? item.frequency} · avg ${item.avgAmount.toFixed(2)} · {item.occurrences}× in 24 mo
+          </p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setAdded(true)}
+            disabled={added}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors font-body ${
+              added
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 cursor-default'
+                : 'bg-rx-orange-light dark:bg-rx-orange/10 text-rx-orange hover:bg-orange-100 dark:hover:bg-rx-orange/20'
+            }`}
+          >
+            {added ? 'Added ✓' : <><Plus size={12} />Add to Restox</>}
+          </button>
+          <button
+            onClick={handleIgnore}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-lg text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-600 dark:hover:text-gray-300 transition-colors font-body"
+          >
+            <X size={12} />
+            Ignore
+          </button>
+        </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-rx-navy dark:text-white font-body truncate">{item.merchant}</p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
-          {frequencyLabel[item.frequency] ?? item.frequency} · avg ${item.avgAmount.toFixed(2)} · {item.occurrences}× in 24 mo
-        </p>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Ignored merchant row in the collapsible section
+// ---------------------------------------------------------------------------
+function IgnoredRow({ merchant, onRestore }: { merchant: string; onRestore: (m: string) => void }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-3 bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10">
+      <div className="flex items-center gap-3">
+        <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-white/5 flex items-center justify-center">
+          <CreditCard size={14} className="text-gray-400 dark:text-gray-500" />
+        </div>
+        <span className="text-sm text-gray-500 dark:text-gray-400 font-body">{merchant}</span>
       </div>
       <button
-        onClick={() => setAdded(true)}
-        disabled={added}
-        className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors font-body ${
-          added
-            ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 cursor-default'
-            : 'bg-rx-orange-light dark:bg-rx-orange/10 text-rx-orange hover:bg-orange-100 dark:hover:bg-rx-orange/20'
-        }`}
+        onClick={() => onRestore(merchant)}
+        className="text-xs font-semibold text-rx-orange hover:text-rx-orange-dark transition-colors font-body"
       >
-        {added ? 'Added ✓' : <><Plus size={12} />Add to Restox</>}
+        Restore
       </button>
     </div>
   )
@@ -153,6 +195,43 @@ export default function SpendIntelligencePage() {
   const [loading, setLoading] = useState(false)
   const [fetched, setFetched] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Ignored state
+  const [ignored, setIgnored] = useState<string[]>([])
+  const [ignoredOpen, setIgnoredOpen] = useState(false)
+
+  // Load ignored merchants from server
+  useEffect(() => {
+    if (!hasProAccess) return
+    fetch('/api/user/ignored-merchants')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.ignored_merchants)) setIgnored(d.ignored_merchants) })
+      .catch(() => {})
+  }, [hasProAccess])
+
+  const persistIgnored = useCallback((merchants: string[]) => {
+    fetch('/api/user/ignored-merchants', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ merchants }),
+    }).catch(() => {})
+  }, [])
+
+  const handleIgnore = useCallback((merchant: string) => {
+    setIgnored(prev => {
+      const next = prev.includes(merchant) ? prev : [...prev, merchant]
+      persistIgnored(next)
+      return next
+    })
+  }, [persistIgnored])
+
+  const handleRestore = useCallback((merchant: string) => {
+    setIgnored(prev => {
+      const next = prev.filter(m => m !== merchant)
+      persistIgnored(next)
+      return next
+    })
+  }, [persistIgnored])
 
   const fetchRecurring = useCallback(async () => {
     setLoading(true)
@@ -175,9 +254,15 @@ export default function SpendIntelligencePage() {
     if (hasProAccess) fetchRecurring()
   }, [hasProAccess, fetchRecurring])
 
-  const handlePlaidSuccess = useCallback(() => {
-    fetchRecurring()
-  }, [fetchRecurring])
+  const handlePlaidSuccess = useCallback(() => { fetchRecurring() }, [fetchRecurring])
+
+  const visible = recurring.filter(r => !ignored.includes(r.merchant))
+  const ignoredItems = recurring.filter(r => ignored.includes(r.merchant))
+
+  // Ignored merchants that have no matching recurring entry (from a previous session)
+  const ghostIgnored = ignored.filter(m => !recurring.some(r => r.merchant === m))
+
+  const allIgnoredMerchants = [...ignoredItems.map(i => i.merchant), ...ghostIgnored]
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -188,7 +273,7 @@ export default function SpendIntelligencePage() {
 
       {!hasProAccess ? (
         <>
-          {/* Blurred preview with paywall overlay */}
+          {/* Blurred paywall preview */}
           <div className="relative rounded-2xl overflow-hidden">
             <div className="blur-sm pointer-events-none select-none bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm divide-y divide-gray-50 dark:divide-white/5">
               {SAMPLE_ROWS.map(row => {
@@ -242,7 +327,7 @@ export default function SpendIntelligencePage() {
         </>
       ) : (
         <>
-          {/* Loading state */}
+          {/* Loading */}
           {loading && (
             <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-16 flex flex-col items-center text-center">
               <RefreshCw size={28} className="text-blue-500 dark:text-blue-400 animate-spin mb-4" />
@@ -258,7 +343,7 @@ export default function SpendIntelligencePage() {
             </div>
           )}
 
-          {/* No bank connected yet */}
+          {/* No bank connected */}
           {!loading && fetched && !connected && (
             <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-16 flex flex-col items-center text-center">
               <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
@@ -280,8 +365,8 @@ export default function SpendIntelligencePage() {
             </div>
           )}
 
-          {/* Bank connected, no recurring detected */}
-          {!loading && fetched && connected && recurring.length === 0 && (
+          {/* Bank connected — no visible suggestions (all ignored or none found) */}
+          {!loading && fetched && connected && visible.length === 0 && allIgnoredMerchants.length === 0 && (
             <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-16 flex flex-col items-center text-center">
               <div className="w-14 h-14 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mb-4">
                 <PieChart size={26} className="text-blue-500 dark:text-blue-400" />
@@ -294,12 +379,26 @@ export default function SpendIntelligencePage() {
             </div>
           )}
 
+          {/* All suggestions ignored empty state */}
+          {!loading && fetched && connected && visible.length === 0 && allIgnoredMerchants.length > 0 && (
+            <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm py-12 flex flex-col items-center text-center">
+              <div className="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center mb-4">
+                <PieChart size={26} className="text-gray-400 dark:text-gray-500" />
+              </div>
+              <h2 className="font-heading font-semibold text-rx-navy dark:text-white text-base mb-1">All suggestions ignored</h2>
+              <p className="text-sm text-gray-400 dark:text-gray-500 font-body max-w-xs mb-4">
+                Restore suggestions below or link another bank account to find more.
+              </p>
+              <LinkBankButton onSuccess={handlePlaidSuccess} />
+            </div>
+          )}
+
           {/* Recurring purchases list */}
-          {!loading && recurring.length > 0 && (
+          {!loading && visible.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-body">
-                  {recurring.length} recurring purchase{recurring.length !== 1 ? 's' : ''} detected
+                  {visible.length} recurring purchase{visible.length !== 1 ? 's' : ''} detected
                 </p>
                 <div className="flex items-center gap-3">
                   <LinkBankButton onSuccess={handlePlaidSuccess} />
@@ -313,10 +412,35 @@ export default function SpendIntelligencePage() {
                 </div>
               </div>
               <div className="space-y-3">
-                {recurring.map(item => (
-                  <RecurringCard key={item.merchant} item={item} />
+                {visible.map(item => (
+                  <RecurringCard key={item.merchant} item={item} onIgnore={handleIgnore} />
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Ignored suggestions — collapsible */}
+          {!loading && fetched && allIgnoredMerchants.length > 0 && (
+            <div className="border border-gray-100 dark:border-white/10 rounded-xl overflow-hidden">
+              <button
+                onClick={() => setIgnoredOpen(o => !o)}
+                className="w-full flex items-center justify-between px-5 py-3.5 bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+              >
+                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400 font-body">
+                  Ignored suggestions ({allIgnoredMerchants.length})
+                </span>
+                <ChevronDown
+                  size={16}
+                  className={`text-gray-400 dark:text-gray-500 transition-transform duration-200 ${ignoredOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {ignoredOpen && (
+                <div className="p-4 space-y-2 bg-white dark:bg-[#16213E]">
+                  {allIgnoredMerchants.map(merchant => (
+                    <IgnoredRow key={merchant} merchant={merchant} onRestore={handleRestore} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>
