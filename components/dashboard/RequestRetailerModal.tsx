@@ -1,0 +1,136 @@
+'use client'
+
+import { useState } from 'react'
+import { X, Store, Loader2, CheckCircle } from 'lucide-react'
+import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+
+interface Props {
+  onClose: () => void
+}
+
+export default function RequestRetailerModal({ onClose }: Props) {
+  const [retailerName, setRetailerName] = useState('')
+  const [websiteUrl, setWebsiteUrl] = useState('')
+  const [reason, setReason] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState('')
+  const supabase = createSupabaseBrowserClient()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!retailerName.trim()) { setError('Retailer name is required'); return }
+    setError('')
+    setLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { error: dbError } = await supabase.from('retailer_requests').insert({
+        user_id: user.id,
+        retailer_name: retailerName.trim(),
+        website_url: websiteUrl.trim() || null,
+        reason: reason.trim() || null,
+      })
+      if (dbError) throw dbError
+
+      setSubmitted(true)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-rx-orange-light flex items-center justify-center">
+              <Store size={16} className="text-rx-orange" />
+            </div>
+            <span className="font-heading font-semibold text-rx-navy">Request a Retailer</span>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-6">
+          {submitted ? (
+            <div className="flex flex-col items-center text-center py-4">
+              <div className="w-12 h-12 rounded-2xl bg-green-50 flex items-center justify-center mb-3">
+                <CheckCircle size={24} className="text-green-500" />
+              </div>
+              <p className="font-heading font-semibold text-rx-navy mb-1">Request submitted!</p>
+              <p className="text-sm text-gray-400 font-body mb-5">
+                Thanks for the suggestion. We review all retailer requests and prioritize by demand.
+              </p>
+              <button
+                onClick={onClose}
+                className="px-5 py-2 bg-rx-orange text-white text-sm font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body"
+              >
+                Done
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                  Retailer name <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={retailerName}
+                  onChange={e => setRetailerName(e.target.value)}
+                  placeholder="e.g. Chewy, IKEA, Petco"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
+                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+                    placeholder:text-gray-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                  Website URL <span className="text-gray-300">(optional)</span>
+                </label>
+                <input
+                  type="url"
+                  value={websiteUrl}
+                  onChange={e => setWebsiteUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
+                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+                    placeholder:text-gray-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 font-body mb-1">
+                  Why do you want this retailer? <span className="text-gray-300">(optional)</span>
+                </label>
+                <textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="I regularly order from here and would love to automate it…"
+                  rows={3}
+                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
+                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+                    placeholder:text-gray-300 resize-none"
+                />
+              </div>
+              {error && <p className="text-red-500 text-xs font-body">{error}</p>}
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 bg-rx-orange hover:bg-rx-orange-dark text-white font-semibold
+                  rounded-xl text-sm transition-colors font-body disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {loading ? <><Loader2 size={15} className="animate-spin" /> Submitting…</> : 'Submit Request'}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

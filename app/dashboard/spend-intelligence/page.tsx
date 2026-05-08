@@ -1,4 +1,7 @@
+'use client'
+
 import { Lock, CreditCard, Mail, Camera } from 'lucide-react'
+import { useUser } from '@/contexts/UserContext'
 
 const INSIGHTS = [
   { id: 1, product: 'Organic Coffee Beans', source: 'email',  spend: '$18.99/mo avg',  action: 'Add to Restox',  done: false },
@@ -9,10 +12,8 @@ const INSIGHTS = [
 const SOURCE_ICON: Record<string, React.ElementType> = { email: Mail, plaid: CreditCard, receipt: Camera }
 const SOURCE_LABEL: Record<string, string> = { email: 'Email parsing', plaid: 'Plaid bank link', receipt: 'Receipt OCR' }
 
-// Toggle isPro to true to see the unlocked view
-const isPro = false
-
 export default function SpendIntelligencePage() {
+  const { hasProAccess: isPro } = useUser()
   if (!isPro) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">

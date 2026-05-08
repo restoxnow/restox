@@ -1,4 +1,7 @@
+'use client'
+
 import { BrainCircuit, Lock, TrendingDown, Sliders } from 'lucide-react'
+import { useUser } from '@/contexts/UserContext'
 
 const PREDICTIONS = [
   { id: 1, product: 'Tide Pods 96ct',  predictedDate: 'May 10', confidence: 94, seasonal: false, daysLeft: 3 },
@@ -19,10 +22,8 @@ function ConfidenceBadge({ value }: { value: number }) {
   )
 }
 
-// Toggle isPro to true to see the unlocked view
-const isPro = false
-
 export default function AITimingPage() {
+  const { hasProAccess: isPro } = useUser()
   if (!isPro) {
     return (
       <div className="max-w-4xl mx-auto space-y-6">

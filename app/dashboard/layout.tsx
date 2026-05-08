@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import Sidebar from '@/components/dashboard/Sidebar'
 import NotificationsBell from '@/components/dashboard/NotificationsBell'
 import InactivityTimer from '@/components/dashboard/InactivityTimer'
+import { UserProvider } from '@/contexts/UserContext'
 import { Search } from 'lucide-react'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -14,9 +15,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const userName = user.user_metadata?.full_name as string | undefined
   const userEmail = user.email
   const avatarUrl = user.user_metadata?.avatar_url as string | undefined
-  const planTier = (user.user_metadata?.plan_tier as string) ?? 'free'
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('is_admin, plan_tier')
+    .eq('id', user.id)
+    .single()
+
+  const isAdmin = profile?.is_admin ?? false
+  const planTier = (profile?.plan_tier as string) ?? (user.user_metadata?.plan_tier as string) ?? 'free'
 
   return (
+    <UserProvider isAdmin={isAdmin} planTier={planTier}>
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <InactivityTimer />
       <Sidebar
@@ -48,5 +58,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </main>
       </div>
     </div>
+    </UserProvider>
   )
 }
