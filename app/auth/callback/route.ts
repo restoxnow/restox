@@ -26,8 +26,28 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error && data.user) {
+      const user = data.user
+
+      // New user: account was created within the last 2 minutes
+      const createdMs = new Date(user.created_at).getTime()
+      const isNewUser = Date.now() - createdMs < 2 * 60 * 1000
+
+      if (isNewUser) {
+        return NextResponse.redirect(
+          `${origin}/dashboard/settings?tab=profile&welcome=true`
+        )
+      }
+
+      // Returning user: check if profile fields are set
+      const hasFullName = !!user.user_metadata?.full_name
+      if (!hasFullName) {
+        return NextResponse.redirect(
+          `${origin}/dashboard/settings?tab=profile`
+        )
+      }
+
       return NextResponse.redirect(`${origin}${next}`)
     }
   }

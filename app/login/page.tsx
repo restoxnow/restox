@@ -41,9 +41,10 @@ export default function LoginPage() {
         if (error) throw error
         setMessage('Check your email to confirm your account.')
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
-        router.push('/dashboard')
+        const hasFullName = !!data.user?.user_metadata?.full_name
+        router.push(hasFullName ? '/dashboard' : '/dashboard/settings?tab=profile')
         router.refresh()
       }
     } catch (err: any) {

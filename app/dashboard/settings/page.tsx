@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
-import { User, Bell, CreditCard, Store, Shield } from 'lucide-react'
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { User, Bell, CreditCard, Store, Shield, PartyPopper } from 'lucide-react'
 
 const SECTIONS = [
   { id: 'profile',       label: 'Account & Profile',     icon: User },
@@ -20,9 +21,22 @@ const PLANS = [
   { id: 'business',     label: 'Business SMB', price: '$79/mo',   schedules: 'Unlimited + API',    features: ['Multi-user seats', 'Approval workflows', 'White-label API'] },
 ]
 
-export default function SettingsPage() {
-  const [section, setSection] = useState<SectionId>('profile')
+function SettingsContent() {
+  const searchParams = useSearchParams()
+  const tabParam = searchParams.get('tab') as SectionId | null
+  const showWelcome = searchParams.get('welcome') === 'true'
+
+  const [section, setSection] = useState<SectionId>(
+    tabParam && SECTIONS.some(s => s.id === tabParam) ? tabParam : 'profile'
+  )
   const currentPlan = 'free'
+
+  // Sync section if the URL tab param changes
+  useEffect(() => {
+    if (tabParam && SECTIONS.some(s => s.id === tabParam)) {
+      setSection(tabParam)
+    }
+  }, [tabParam])
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -30,6 +44,18 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-heading font-bold text-rx-navy">Settings</h1>
         <p className="text-gray-500 text-sm mt-1 font-body">Manage your account, billing, and preferences</p>
       </div>
+
+      {showWelcome && (
+        <div className="bg-rx-orange-light border border-rx-orange/20 rounded-xl p-4 flex items-start gap-3">
+          <PartyPopper size={18} className="text-rx-orange mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-rx-navy font-body">Welcome to Restox!</p>
+            <p className="text-xs text-gray-600 font-body mt-0.5">
+              Complete your profile to get started — just add your name and household size.
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-6 items-start">
         {/* Section nav */}
@@ -73,6 +99,16 @@ export default function SettingsPage() {
                   </div>
                 ))}
                 <div>
+                  <label className="block text-xs font-medium text-gray-500 font-body mb-1">Shipping address</label>
+                  <input
+                    type="text"
+                    placeholder="123 Main St, City, State, ZIP"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body
+                      focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+                      placeholder:text-gray-300"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-medium text-gray-500 font-body mb-1">Household size</label>
                   <select className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-body bg-white
                     focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange">
@@ -92,8 +128,8 @@ export default function SettingsPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-1">
               <h2 className="font-heading font-semibold text-rx-navy mb-4">Notifications</h2>
               {[
-                { label: 'Email notifications',    desc: 'Order confirmations and reminders', on: true,  gate: null },
-                { label: 'SMS notifications',      desc: 'Text reminders before orders',     on: false, gate: 'Consumer+' },
+                { label: 'Email notifications',     desc: 'Order confirmations and reminders', on: true,  gate: null },
+                { label: 'SMS notifications',       desc: 'Text reminders before orders',     on: false, gate: 'Consumer+' },
                 { label: 'Upcoming order reminders',desc: 'Default 24hr before each order',  on: true,  gate: null },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
@@ -176,9 +212,9 @@ export default function SettingsPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-1">
               <h2 className="font-heading font-semibold text-rx-navy mb-4">Security</h2>
               {[
-                { label: 'Change password',  desc: 'Update your email/password login',           action: 'Update', danger: false },
-                { label: 'Active sessions',  desc: 'View and revoke devices',                    action: 'Manage', danger: false },
-                { label: 'Delete account',   desc: 'Permanently delete your Restox account',     action: 'Delete', danger: true },
+                { label: 'Change password', desc: 'Update your email/password login',       action: 'Update', danger: false },
+                { label: 'Active sessions', desc: 'View and revoke devices',                action: 'Manage', danger: false },
+                { label: 'Delete account',  desc: 'Permanently delete your Restox account', action: 'Delete', danger: true },
               ].map(item => (
                 <div key={item.label} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
                   <div>
@@ -196,5 +232,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SettingsContent />
+    </Suspense>
   )
 }
