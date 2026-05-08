@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { Search, ChevronDown, ChevronRight, CheckCircle, X } from 'lucide-react'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
 import RequestRetailerModal from '@/components/dashboard/RequestRetailerModal'
@@ -8,7 +9,7 @@ import RequestRetailerModal from '@/components/dashboard/RequestRetailerModal'
 interface Retailer {
   id: number
   name: string
-  emoji: string
+  domain: string
   credentialsOnly?: boolean
 }
 
@@ -23,52 +24,88 @@ const CATEGORIES: Category[] = [
     id: 'general',
     label: 'General Merchandise',
     retailers: [
-      { id: 1,  name: 'Amazon',  emoji: '📦' },
-      { id: 2,  name: 'Walmart', emoji: '🏪' },
-      { id: 3,  name: 'Target',  emoji: '🎯' },
+      { id: 1,  name: 'Amazon',  domain: 'amazon.com' },
+      { id: 2,  name: 'Walmart', domain: 'walmart.com' },
+      { id: 3,  name: 'Target',  domain: 'target.com' },
     ],
   },
   {
     id: 'home',
     label: 'Home Improvement',
     retailers: [
-      { id: 4,  name: 'Home Depot', emoji: '🔨' },
-      { id: 5,  name: "Lowe's",    emoji: '🔧', credentialsOnly: true },
+      { id: 4,  name: 'Home Depot', domain: 'homedepot.com' },
+      { id: 5,  name: "Lowe's",    domain: 'lowes.com', credentialsOnly: true },
     ],
   },
   {
     id: 'grocery',
     label: 'Grocery & Wholesale',
     retailers: [
-      { id: 6,  name: 'Kroger',     emoji: '🛍️' },
-      { id: 7,  name: 'Costco',     emoji: '🏬' },
-      { id: 8,  name: "Sam's Club", emoji: '🛒' },
+      { id: 6,  name: 'Kroger',     domain: 'kroger.com' },
+      { id: 7,  name: 'Costco',     domain: 'costco.com' },
+      { id: 8,  name: "Sam's Club", domain: 'samsclub.com' },
     ],
   },
   {
     id: 'beauty',
     label: 'Beauty & Personal Care',
     retailers: [
-      { id: 9,  name: 'Sephora', emoji: '💄' },
+      { id: 9,  name: 'Sephora', domain: 'sephora.com' },
     ],
   },
   {
     id: 'pet',
     label: 'Pet Supplies',
     retailers: [
-      { id: 10, name: 'Chewy', emoji: '🐾', credentialsOnly: true },
+      { id: 10, name: 'Chewy', domain: 'chewy.com', credentialsOnly: true },
     ],
   },
   {
     id: 'office',
     label: 'Office & Business',
     retailers: [
-      { id: 11, name: 'Staples', emoji: '📎' },
+      { id: 11, name: 'Staples', domain: 'staples.com' },
     ],
   },
 ]
 
 const ALL_RETAILERS = CATEGORIES.flatMap(c => c.retailers)
+
+// Palette for fallback letter avatars — cycles by retailer id
+const FALLBACK_COLORS = [
+  'bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400',
+  'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+  'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+  'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400',
+  'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
+]
+
+function RetailerLogo({ retailer }: { retailer: Retailer }) {
+  const [failed, setFailed] = useState(false)
+  const color = FALLBACK_COLORS[(retailer.id - 1) % FALLBACK_COLORS.length]
+
+  if (failed) {
+    return (
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold font-heading ${color}`}>
+        {retailer.name[0]}
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-12 h-12 rounded-xl bg-white dark:bg-white/10 border border-gray-100 dark:border-white/10 flex items-center justify-center p-1.5 overflow-hidden">
+      <Image
+        src={`https://logo.clearbit.com/${retailer.domain}`}
+        alt={retailer.name}
+        width={48}
+        height={48}
+        className="object-contain w-full h-full"
+        onError={() => setFailed(true)}
+        unoptimized
+      />
+    </div>
+  )
+}
 
 export default function RetailersPage() {
   const [connected, setConnected]           = useState<Retailer[]>([])
@@ -196,7 +233,7 @@ export default function RetailersPage() {
                             <CheckCircle size={8} className="shrink-0" /> Connected
                           </span>
                         )}
-                        <span className="text-3xl leading-none">{r.emoji}</span>
+                        <RetailerLogo retailer={r} />
                         <span className="text-sm font-medium text-rx-navy dark:text-white font-body leading-tight">
                           {r.name}
                         </span>
