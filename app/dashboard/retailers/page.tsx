@@ -1,128 +1,247 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertCircle, ChevronRight, Store, CheckCircle, Plus } from 'lucide-react'
+import { Search, ChevronDown, ChevronRight, CheckCircle, X } from 'lucide-react'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
 import RequestRetailerModal from '@/components/dashboard/RequestRetailerModal'
 
-const ALL_RETAILERS = [
-  { id: 1, name: 'Amazon',     emoji: '🛒' },
-  { id: 2, name: 'Walmart',    emoji: '🏪' },
-  { id: 3, name: 'Costco',     emoji: '🏬' },
-  { id: 4, name: 'Target',     emoji: '🎯' },
-  { id: 5, name: 'Kroger',     emoji: '🛍️' },
-  { id: 6, name: 'Chewy',      emoji: '🐾' },
-  { id: 7, name: 'Sephora',    emoji: '💄' },
-  { id: 8, name: 'Staples',    emoji: '📎' },
-  { id: 9, name: 'Home Depot', emoji: '🔨' },
+interface Retailer {
+  id: number
+  name: string
+  emoji: string
+  credentialsOnly?: boolean
+}
+
+interface Category {
+  id: string
+  label: string
+  retailers: Retailer[]
+}
+
+const CATEGORIES: Category[] = [
+  {
+    id: 'general',
+    label: 'General Merchandise',
+    retailers: [
+      { id: 1,  name: 'Amazon',  emoji: '📦' },
+      { id: 2,  name: 'Walmart', emoji: '🏪' },
+      { id: 3,  name: 'Target',  emoji: '🎯' },
+    ],
+  },
+  {
+    id: 'home',
+    label: 'Home Improvement',
+    retailers: [
+      { id: 4,  name: 'Home Depot', emoji: '🔨' },
+      { id: 5,  name: "Lowe's",    emoji: '🔧', credentialsOnly: true },
+    ],
+  },
+  {
+    id: 'grocery',
+    label: 'Grocery & Wholesale',
+    retailers: [
+      { id: 6,  name: 'Kroger',     emoji: '🛍️' },
+      { id: 7,  name: 'Costco',     emoji: '🏬' },
+      { id: 8,  name: "Sam's Club", emoji: '🛒' },
+    ],
+  },
+  {
+    id: 'beauty',
+    label: 'Beauty & Personal Care',
+    retailers: [
+      { id: 9,  name: 'Sephora', emoji: '💄' },
+    ],
+  },
+  {
+    id: 'pet',
+    label: 'Pet Supplies',
+    retailers: [
+      { id: 10, name: 'Chewy', emoji: '🐾', credentialsOnly: true },
+    ],
+  },
+  {
+    id: 'office',
+    label: 'Office & Business',
+    retailers: [
+      { id: 11, name: 'Staples', emoji: '📎' },
+    ],
+  },
 ]
 
-type Retailer = typeof ALL_RETAILERS[0]
+const ALL_RETAILERS = CATEGORIES.flatMap(c => c.retailers)
 
 export default function RetailersPage() {
-  const [connected, setConnected] = useState<Retailer[]>([])
+  const [connected, setConnected]           = useState<Retailer[]>([])
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
-
-  const available = ALL_RETAILERS.filter(r => !connected.find(c => c.id === r.id))
+  const [searchQuery, setSearchQuery]       = useState('')
+  const [collapsed, setCollapsed]           = useState<Record<string, boolean>>({})
 
   const handleConnected = (name: string) => {
     const retailer = ALL_RETAILERS.find(r => r.name === name)
     if (retailer) setConnected(prev => [...prev, retailer])
   }
 
+  const isConnected = (id: number) => connected.some(r => r.id === id)
+
+  const query = searchQuery.toLowerCase().trim()
+
+  const filteredCategories = CATEGORIES
+    .map(cat => ({
+      ...cat,
+      retailers: cat.retailers.filter(r =>
+        !query || r.name.toLowerCase().includes(query)
+      ),
+    }))
+    .filter(cat => cat.retailers.length > 0)
+
+  const hasNoResults = !!query && filteredCategories.length === 0
+
+  const toggleCategory = (id: string) =>
+    setCollapsed(prev => ({ ...prev, [id]: !prev[id] }))
+
+  // Search overrides collapsed state — always expand when filtering
+  const isCategoryCollapsed = (id: string) => !query && !!collapsed[id]
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-heading font-bold text-rx-navy dark:text-white">Retailers</h1>
-          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-body">Manage your connected store accounts</p>
-        </div>
-        <button
-          onClick={() => setShowRequestModal(true)}
-          className="flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-white/10 text-rx-navy dark:text-white text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-body"
-        >
-          <Plus size={15} /> Request a Retailer
-        </button>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-heading font-bold text-rx-navy dark:text-white">Retailers</h1>
+        <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-body">
+          {connected.length > 0
+            ? `${connected.length} retailer${connected.length === 1 ? '' : 's'} connected`
+            : 'Connect your stores to start automating purchases'}
+        </p>
       </div>
 
-      {/* Connected */}
-      <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none">
-        <div className="px-5 py-4 border-b border-gray-100 dark:border-white/10">
-          <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Connected ({connected.length})</h2>
-        </div>
-        {connected.length === 0 ? (
-          <div className="py-10 flex flex-col items-center text-center px-6">
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 flex items-center justify-center mb-3">
-              <Store size={22} className="text-gray-400 dark:text-gray-500" />
-            </div>
-            <p className="text-sm font-medium text-rx-navy dark:text-white font-body mb-1">No retailers connected yet</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 font-body max-w-xs">
-              Connect your first store below to start tracking and automating purchases.
-            </p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-50 dark:divide-white/5">
-            {connected.map(r => (
-              <div key={r.id} className="flex items-center gap-4 px-5 py-4">
-                <span className="text-3xl">{r.emoji}</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-rx-navy dark:text-white font-body text-sm">{r.name}</span>
-                    <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400 font-body">
-                      <CheckCircle size={11} /> Connected
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">0 products tracked</p>
-                </div>
-                <button
-                  onClick={() => setConnected(prev => prev.filter(c => c.id !== r.id))}
-                  className="text-xs text-gray-400 hover:text-red-500 font-body transition-colors"
-                >
-                  Disconnect
-                </button>
-              </div>
-            ))}
-          </div>
+      {/* Search bar */}
+      <div className="relative">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search retailers..."
+          className="w-full pl-11 pr-10 py-3 bg-white dark:bg-[#16213E] border border-gray-200 dark:border-white/10
+            rounded-xl text-sm font-body text-rx-navy dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500
+            focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+            shadow-sm dark:shadow-none transition-colors"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            <X size={15} />
+          </button>
         )}
       </div>
 
-      {/* Available to connect */}
-      {available.length > 0 && (
-        <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none">
-          <div className="px-5 py-4 border-b border-gray-100 dark:border-white/10">
-            <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Add a Retailer</h2>
-          </div>
-          <div className="divide-y divide-gray-50 dark:divide-white/5">
-            {available.map(r => (
-              <button
-                key={r.id}
-                onClick={() => setSelectedRetailer(r)}
-                className="w-full flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-left group"
-              >
-                <span className="text-3xl">{r.emoji}</span>
-                <span className="flex-1 font-medium text-rx-navy dark:text-white font-body text-sm">{r.name}</span>
-                <ChevronRight size={16} className="text-gray-300 dark:text-gray-600 group-hover:text-rx-orange transition-colors" />
-              </button>
-            ))}
-          </div>
+      {/* No-results state */}
+      {hasNoResults && (
+        <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none py-14 flex flex-col items-center text-center">
+          <p className="text-sm font-medium text-rx-navy dark:text-white font-body mb-1">No retailers found</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 font-body">
+            Want us to add one?{' '}
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className="text-rx-orange hover:text-rx-orange-dark font-semibold underline transition-colors"
+            >
+              Request a retailer
+            </button>
+          </p>
         </div>
       )}
 
-      {/* Info callout */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-xl p-4 flex items-start gap-3">
-        <AlertCircle size={16} className="text-blue-500 dark:text-blue-400 mt-0.5 shrink-0" />
-        <div className="text-xs text-blue-700 dark:text-blue-300 font-body">
-          <p className="font-semibold mb-0.5">How retailer connections work</p>
-          <p>We try OAuth first (most secure), then the browser extension, then credential input as a fallback.</p>
+      {/* Category sections */}
+      {filteredCategories.map(cat => {
+        const collapsed_ = isCategoryCollapsed(cat.id)
+        return (
+          <div key={cat.id}>
+            {/* Category header */}
+            <button
+              onClick={() => toggleCategory(cat.id)}
+              className="w-full flex items-center justify-between mb-3 group"
+            >
+              <span className="font-heading font-bold text-xs tracking-widest uppercase text-gray-500 dark:text-gray-400 group-hover:text-rx-navy dark:group-hover:text-white transition-colors">
+                {cat.label}
+              </span>
+              {collapsed_
+                ? <ChevronRight size={15} className="text-gray-400 dark:text-gray-500 group-hover:text-rx-navy dark:group-hover:text-white transition-colors" />
+                : <ChevronDown  size={15} className="text-gray-400 dark:text-gray-500 group-hover:text-rx-navy dark:group-hover:text-white transition-colors" />
+              }
+            </button>
+
+            {!collapsed_ && (
+              <div className="space-y-3">
+                {/* Retailer card grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {cat.retailers.map(r => {
+                    const alreadyConnected = isConnected(r.id)
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setSelectedRetailer(r)}
+                        className={`relative bg-white dark:bg-[#16213E] rounded-xl border shadow-sm dark:shadow-none
+                          transition-all p-4 flex flex-col items-center gap-2 text-center group
+                          ${alreadyConnected
+                            ? 'border-green-200 dark:border-green-800/40 hover:border-green-300 dark:hover:border-green-700/50'
+                            : 'border-gray-100 dark:border-white/10 hover:border-rx-orange/40 dark:hover:border-rx-orange/30 hover:shadow-md dark:hover:shadow-black/20'
+                          }`}
+                      >
+                        {alreadyConnected && (
+                          <span className="absolute top-2 right-2 flex items-center gap-0.5 text-[9px] font-bold
+                            text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded-full">
+                            <CheckCircle size={8} className="shrink-0" /> Connected
+                          </span>
+                        )}
+                        <span className="text-3xl leading-none">{r.emoji}</span>
+                        <span className="text-sm font-medium text-rx-navy dark:text-white font-body leading-tight">
+                          {r.name}
+                        </span>
+                        <span className={`text-[10px] font-semibold font-body transition-opacity
+                          ${alreadyConnected
+                            ? 'text-green-500 dark:text-green-400 opacity-100'
+                            : 'text-rx-orange opacity-0 group-hover:opacity-100'
+                          }`}>
+                          {alreadyConnected ? 'Manage' : 'Connect →'}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* More coming soon */}
+                <p className="text-xs text-gray-300 dark:text-gray-600 font-body pl-0.5">
+                  + More coming soon
+                </p>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Global request CTA */}
+      {!hasNoResults && (
+        <div className="pt-2 pb-2 border-t border-gray-100 dark:border-white/10 text-center">
+          <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
+            Don&apos;t see your retailer?{' '}
+            <button
+              onClick={() => setShowRequestModal(true)}
+              className="font-semibold text-rx-orange hover:text-rx-orange-dark transition-colors"
+            >
+              Request it →
+            </button>
+          </p>
         </div>
-      </div>
+      )}
 
       {/* Modals */}
       {selectedRetailer && (
         <RetailerConnectModal
           retailer={selectedRetailer}
-          defaultTab={selectedRetailer.name === 'Chewy' ? 'credentials' : 'oauth'}
+          defaultTab={selectedRetailer.credentialsOnly ? 'credentials' : 'oauth'}
           onClose={() => setSelectedRetailer(null)}
           onConnected={handleConnected}
         />
