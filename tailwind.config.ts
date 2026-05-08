@@ -10,6 +10,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        rx: {
+          orange: '#F47C20',
+          'orange-dark': '#D96A10',
+          'orange-light': '#FEF3E8',
+          navy: '#1A1A2E',
+          'navy-light': '#252540',
+          'navy-lighter': '#2E2E50',
+          blue: '#2D4A7A',
+          'blue-light': '#3A5F9E',
+        },
         brand: {
           orange: '#F97316',
           amber: '#F59E0B',
