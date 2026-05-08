@@ -223,6 +223,13 @@ export default function LoginPage() {
               </button>
             )}
           </div>
+
+          <p className="mt-5 text-center text-[11px] text-gray-400 font-body leading-relaxed">
+            By continuing, you agree to our{' '}
+            <a href="/terms" className="underline hover:text-gray-600 transition-colors">Terms of Service</a>
+            {' '}and{' '}
+            <a href="/privacy" className="underline hover:text-gray-600 transition-colors">Privacy Policy</a>
+          </p>
         </div>
       </div>
     </div>
