@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import Sidebar from '@/components/dashboard/Sidebar'
 import NotificationsBell from '@/components/dashboard/NotificationsBell'
+import InactivityTimer from '@/components/dashboard/InactivityTimer'
 import { Search } from 'lucide-react'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
+      <InactivityTimer />
       <Sidebar
         userName={userName}
         userEmail={userEmail}
