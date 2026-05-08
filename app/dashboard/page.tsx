@@ -153,7 +153,7 @@ export default function DashboardPage() {
       .order('created_at', { ascending: false })
       .limit(10)
 
-    setSchedules((data as ScheduleRow[]) ?? [])
+    setSchedules((data as unknown as ScheduleRow[]) ?? [])
     setLoadingSchedules(false)
   }, [supabase])
 

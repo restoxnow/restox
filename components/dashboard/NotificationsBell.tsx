@@ -54,7 +54,7 @@ export default function NotificationsBell() {
       .order('created_at', { ascending: false })
       .limit(20)
 
-    setSchedules((data as ScheduleRow[]) ?? [])
+    setSchedules((data as unknown as ScheduleRow[]) ?? [])
   }, [supabase])
 
   useEffect(() => { fetchSchedules() }, [fetchSchedules])
@@ -115,10 +115,10 @@ export default function NotificationsBell() {
 
     if (!error) {
       // Trigger fade-out, then remove from list
-      setExiting(prev => new Set([...prev, id]))
+      setExiting(prev => new Set(Array.from(prev).concat(id)))
       setTimeout(() => {
         setSchedules(prev => prev.filter(s => s.id !== id))
-        setExiting(prev => { const next = new Set(prev); next.delete(id); return next })
+        setExiting(prev => { const next = new Set(Array.from(prev)); next.delete(id); return next })
       }, 300)
     }
 

@@ -329,7 +329,7 @@ export default function SchedulesPage() {
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    setSchedules((data as Schedule[]) ?? [])
+    setSchedules((data as unknown as Schedule[]) ?? [])
     setLoading(false)
   }, [supabase])
 

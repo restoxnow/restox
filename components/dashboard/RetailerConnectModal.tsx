@@ -7,7 +7,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 type Tab = 'oauth' | 'extension' | 'credentials'
 
 interface Props {
-  retailer: { name: string; emoji: string }
+  retailer: { name: string; domain?: string }
   defaultTab?: Tab
   onClose: () => void
   onConnected: (retailerName: string) => void
@@ -63,7 +63,9 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">{retailer.emoji}</span>
+            <div className="w-8 h-8 rounded-lg bg-rx-orange-light dark:bg-rx-orange/10 flex items-center justify-center text-sm font-bold font-heading text-rx-orange">
+              {retailer.name[0]}
+            </div>
             <span className="font-heading font-semibold text-rx-navy dark:text-white">Connect {retailer.name}</span>
           </div>
           <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">

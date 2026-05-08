@@ -285,7 +285,7 @@ export default function SpendIntelligencePage() {
   }, [persistIgnored])
 
   const handleAdded = useCallback((merchant: string) => {
-    setAddedMerchants(prev => new Set([...prev, merchant]))
+    setAddedMerchants(prev => new Set(Array.from(prev).concat(merchant)))
     setToast('Added to Restox! Check your Schedules page.')
   }, [])
 
