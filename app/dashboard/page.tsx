@@ -1,10 +1,11 @@
+import Link from 'next/link'
 import { Clock, Store, Package, DollarSign, Plus, CalendarClock } from 'lucide-react'
 
 const STATS = [
-  { label: 'Active Schedules',    value: '0', icon: Clock,      bg: 'bg-blue-50',         color: 'text-blue-600' },
-  { label: 'Connected Retailers', value: '0', icon: Store,      bg: 'bg-rx-orange-light', color: 'text-rx-orange' },
-  { label: 'Products Tracked',    value: '0', icon: Package,    bg: 'bg-purple-50',       color: 'text-purple-600' },
-  { label: 'Saved This Month',    value: '$0', icon: DollarSign, bg: 'bg-green-50',        color: 'text-green-600' },
+  { label: 'Active Schedules',    value: '0',  icon: Clock,      bg: 'bg-blue-50',         color: 'text-blue-600',   href: '/dashboard/schedules' },
+  { label: 'Connected Retailers', value: '0',  icon: Store,      bg: 'bg-rx-orange-light', color: 'text-rx-orange',  href: '/dashboard/retailers' },
+  { label: 'Products Tracked',    value: '0',  icon: Package,    bg: 'bg-purple-50',       color: 'text-purple-600', href: '/dashboard/products' },
+  { label: 'Saved This Month',    value: '$0', icon: DollarSign, bg: 'bg-green-50',        color: 'text-green-600',  href: null },
 ]
 
 export default function DashboardPage() {
@@ -17,15 +18,25 @@ export default function DashboardPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {STATS.map(({ label, value, icon: Icon, bg, color }) => (
-          <div key={label} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${bg}`}>
-              <Icon size={18} className={color} />
+        {STATS.map(({ label, value, icon: Icon, bg, color, href }) => {
+          const card = (
+            <div className={`bg-white rounded-xl p-4 border border-gray-100 shadow-sm h-full
+              ${href ? 'hover:border-gray-300 hover:shadow-md transition-all' : ''}`}>
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${bg}`}>
+                <Icon size={18} className={color} />
+              </div>
+              <p className="text-2xl font-heading font-bold text-rx-navy">{value}</p>
+              <p className="text-xs text-gray-500 font-body mt-0.5">{label}</p>
             </div>
-            <p className="text-2xl font-heading font-bold text-rx-navy">{value}</p>
-            <p className="text-xs text-gray-500 font-body mt-0.5">{label}</p>
-          </div>
-        ))}
+          )
+          return href ? (
+            <Link key={label} href={href} className="block">
+              {card}
+            </Link>
+          ) : (
+            <div key={label}>{card}</div>
+          )
+        })}
       </div>
 
       {/* Upcoming orders — empty state */}
