@@ -58,9 +58,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-rx-navy flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-rx-orange flex items-center justify-center mb-4">
-            <span className="text-white font-heading font-bold text-2xl">Rx</span>
-          </div>
+          <Image src="/restox-logo-icon.png" alt="Restox" width={64} height={64} className="mb-4 rounded-2xl" />
           <h1 className="font-heading font-bold text-2xl text-white">Restox</h1>
           <p className="text-white/50 text-sm mt-1 font-body">
             {mode === 'signup' ? 'Create your account' : mode === 'reset' ? 'Reset password' : 'Sign in to your account'}
