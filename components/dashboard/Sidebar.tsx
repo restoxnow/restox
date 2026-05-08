@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
@@ -77,9 +78,13 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-rx-navy-lighter">
-        <div className="w-9 h-9 rounded-lg bg-rx-orange flex items-center justify-center shrink-0">
-          <span className="text-white font-heading font-bold text-sm">Rx</span>
-        </div>
+        <Image
+          src="/restox-logo-icon.png"
+          alt="Restox"
+          width={32}
+          height={32}
+          className="shrink-0 rounded-lg"
+        />
         {!collapsed && (
           <span className="font-heading font-bold text-lg tracking-tight">Restox</span>
         )}

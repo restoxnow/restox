@@ -22,8 +22,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .single()
 
-  const isAdmin = profile?.is_admin ?? false
-  const planTier = (profile?.plan_tier as string) ?? (user.user_metadata?.plan_tier as string) ?? 'free'
+  // is_admin: prefer public.users row, then app_metadata (set via Supabase dashboard), then user_metadata
+  const isAdmin: boolean =
+    profile?.is_admin ??
+    (user.app_metadata?.is_admin as boolean | undefined) ??
+    (user.user_metadata?.is_admin as boolean | undefined) ??
+    false
+
+  const planTier: string =
+    (profile?.plan_tier as string | undefined) ??
+    (user.user_metadata?.plan_tier as string | undefined) ??
+    'free'
 
   return (
     <UserProvider isAdmin={isAdmin} planTier={planTier}>
