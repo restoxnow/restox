@@ -14,7 +14,7 @@ const MOCK_SEARCH_RESULTS = [
 
 interface Props {
   onClose: () => void
-  onAdded: (name: string) => void
+  onAdded: (name?: string) => void
 }
 
 export default function AddProductModal({ onClose, onAdded }: Props) {
