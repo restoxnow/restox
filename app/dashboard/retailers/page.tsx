@@ -11,9 +11,10 @@ const ALL_RETAILERS = [
   { id: 3, name: 'Costco',     emoji: '🏬' },
   { id: 4, name: 'Target',     emoji: '🎯' },
   { id: 5, name: 'Kroger',     emoji: '🛍️' },
-  { id: 6, name: 'Sephora',    emoji: '💄' },
-  { id: 7, name: 'Staples',    emoji: '📎' },
-  { id: 8, name: 'Home Depot', emoji: '🔨' },
+  { id: 6, name: 'Chewy',      emoji: '🐾' },
+  { id: 7, name: 'Sephora',    emoji: '💄' },
+  { id: 8, name: 'Staples',    emoji: '📎' },
+  { id: 9, name: 'Home Depot', emoji: '🔨' },
 ]
 
 type Retailer = typeof ALL_RETAILERS[0]
@@ -121,6 +122,7 @@ export default function RetailersPage() {
       {selectedRetailer && (
         <RetailerConnectModal
           retailer={selectedRetailer}
+          defaultTab={selectedRetailer.name === 'Chewy' ? 'credentials' : 'oauth'}
           onClose={() => setSelectedRetailer(null)}
           onConnected={handleConnected}
         />

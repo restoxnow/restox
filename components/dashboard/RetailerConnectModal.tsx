@@ -8,12 +8,13 @@ type Tab = 'oauth' | 'extension' | 'credentials'
 
 interface Props {
   retailer: { name: string; emoji: string }
+  defaultTab?: Tab
   onClose: () => void
   onConnected: (retailerName: string) => void
 }
 
-export default function RetailerConnectModal({ retailer, onClose, onConnected }: Props) {
-  const [tab, setTab] = useState<Tab>('oauth')
+export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', onClose, onConnected }: Props) {
+  const [tab, setTab] = useState<Tab>(defaultTab)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
