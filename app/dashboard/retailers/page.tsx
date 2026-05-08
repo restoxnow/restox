@@ -1,17 +1,14 @@
-import { CheckCircle, AlertCircle, ChevronRight } from 'lucide-react'
-
-const CONNECTED = [
-  { id: 1, name: 'Amazon',  emoji: '🛒', method: 'OAuth',  products: 8 },
-  { id: 2, name: 'Walmart', emoji: '🏪', method: 'OAuth',  products: 3 },
-]
+import { AlertCircle, ChevronRight, Store } from 'lucide-react'
 
 const AVAILABLE = [
-  { id: 3,  name: 'Costco',     emoji: '🏬' },
-  { id: 4,  name: 'Target',     emoji: '🎯' },
-  { id: 5,  name: 'Kroger',     emoji: '🛍️' },
-  { id: 6,  name: 'Sephora',    emoji: '💄' },
-  { id: 7,  name: 'Staples',    emoji: '📎' },
-  { id: 8,  name: 'Home Depot', emoji: '🔨' },
+  { id: 1, name: 'Amazon',     emoji: '🛒' },
+  { id: 2, name: 'Walmart',    emoji: '🏪' },
+  { id: 3, name: 'Costco',     emoji: '🏬' },
+  { id: 4, name: 'Target',     emoji: '🎯' },
+  { id: 5, name: 'Kroger',     emoji: '🛍️' },
+  { id: 6, name: 'Sephora',    emoji: '💄' },
+  { id: 7, name: 'Staples',    emoji: '📎' },
+  { id: 8, name: 'Home Depot', emoji: '🔨' },
 ]
 
 export default function RetailersPage() {
@@ -22,33 +19,23 @@ export default function RetailersPage() {
         <p className="text-gray-500 text-sm mt-1 font-body">Manage your connected store accounts</p>
       </div>
 
-      {/* Connected */}
+      {/* Connected — empty state */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-heading font-semibold text-rx-navy">Connected ({CONNECTED.length})</h2>
+          <h2 className="font-heading font-semibold text-rx-navy">Connected (0)</h2>
         </div>
-        <div className="divide-y divide-gray-50">
-          {CONNECTED.map(r => (
-            <div key={r.id} className="flex items-center gap-4 px-5 py-4">
-              <span className="text-3xl">{r.emoji}</span>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-rx-navy font-body text-sm">{r.name}</span>
-                  <span className="flex items-center gap-1 text-xs text-green-600 font-body">
-                    <CheckCircle size={11} /> Connected via {r.method}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-400 font-body mt-0.5">{r.products} products tracked</p>
-              </div>
-              <button className="text-xs text-gray-400 hover:text-red-500 font-body transition-colors">
-                Disconnect
-              </button>
-            </div>
-          ))}
+        <div className="py-10 flex flex-col items-center text-center px-6">
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+            <Store size={22} className="text-gray-400" />
+          </div>
+          <p className="text-sm font-medium text-rx-navy font-body mb-1">No retailers connected yet</p>
+          <p className="text-xs text-gray-400 font-body max-w-xs">
+            Connect your first store below to start tracking and automating purchases.
+          </p>
         </div>
       </div>
 
-      {/* Available */}
+      {/* Available to connect */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100">
           <h2 className="font-heading font-semibold text-rx-navy">Add a Retailer</h2>
