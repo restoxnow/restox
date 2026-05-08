@@ -81,9 +81,20 @@ export default function LoginPage() {
         if (error) throw error
         setMessage('Check your email for a reset link.')
       } else if (mode === 'signup') {
-        const { error } = await supabase.auth.signUp({ email, password })
-        if (error) throw error
-        setMessage('Check your email to confirm your account.')
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        })
+        if (signUpError) throw signUpError
+
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (!signInError && signInData.session) {
+          router.push('/dashboard/settings?tab=profile&welcome=true')
+          router.refresh()
+        } else {
+          setMessage('Check your email to confirm your account.')
+        }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
