@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Restox</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      width: 300px;
+      background: #0F2040;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: #ffffff;
+    }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .header img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+    }
+    .header-text h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .header-text p {
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      margin-top: 1px;
+    }
+
+    /* ── Body ── */
+    .body {
+      padding: 16px;
+    }
+
+    /* ── Signed-out state ── */
+    #view-signedout {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 12px;
+      padding: 8px 0 4px;
+    }
+    #view-signedout p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.5;
+    }
+
+    /* ── Signed-in state ── */
+    #view-signedin { display: none; flex-direction: column; gap: 12px; }
+
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 10px;
+    }
+    .user-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #F47C20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .user-email {
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Current page info ── */
+    .page-info {
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+    }
+    .page-info span {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.8);
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ── Status message ── */
+    #status-msg {
+      font-size: 12px;
+      text-align: center;
+      color: rgba(255,255,255,0.5);
+      min-height: 16px;
+    }
+    #status-msg.success { color: #4ade80; }
+    #status-msg.error   { color: #f87171; }
+
+    /* ── Buttons ── */
+    .btn {
+      width: 100%;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: opacity 0.15s, transform 0.1s;
+      text-decoration: none;
+    }
+    .btn:hover   { opacity: 0.88; transform: translateY(-1px); }
+    .btn:active  { transform: translateY(0); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-primary {
+      background: #F47C20;
+      color: #ffffff;
+    }
+    .btn-secondary {
+      background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.8);
+    }
+    .btn-danger {
+      background: rgba(239,68,68,0.12);
+      color: #f87171;
+    }
+    .btn-link {
+      background: transparent;
+      color: #F47C20;
+      font-size: 12px;
+      padding: 6px;
+    }
+
+    .divider {
+      height: 1px;
+      background: rgba(255,255,255,0.07);
+      margin: 4px 0;
+    }
+
+    /* ── Not a retailer page ── */
+    #not-retailer-msg {
+      display: none;
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      text-align: center;
+      padding: 4px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="icon.png" alt="Restox" />
+    <div class="header-text">
+      <h1>Restox</h1>
+      <p>Automate your repeat purchases</p>
+    </div>
+  </div>
+
+  <div class="body">
+    <!-- Signed out -->
+    <div id="view-signedout">
+      <p>Sign in to add products to your Restox dashboard and automate reorders.</p>
+      <button class="btn btn-primary" id="btn-signin">Sign in to Restox</button>
+    </div>
+
+    <!-- Signed in -->
+    <div id="view-signedin">
+      <div class="user-chip">
+        <div class="user-avatar" id="user-initial">R</div>
+        <div class="user-email" id="user-email">Loading…</div>
+      </div>
+
+      <div class="page-info" id="page-info">
+        On this page:
+        <span id="page-retailer">Not a supported retailer</span>
+      </div>
+
+      <button class="btn btn-primary" id="btn-add" disabled>Add this product</button>
+
+      <div id="not-retailer-msg">
+        Visit a supported retailer page to add products.
+      </div>
+
+      <div id="status-msg"></div>
+
+      <div class="divider"></div>
+
+      <a href="https://restox.net/dashboard" target="_blank" class="btn btn-secondary" id="btn-dashboard">
+        View Dashboard →
+      </a>
+      <button class="btn btn-danger" id="btn-signout">Sign out</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
