@@ -231,10 +231,10 @@ export default function DashboardPage() {
                   : <div key={key} className="h-full">{card}</div>
               })}
 
-              {/* Combined: Orders Automated + Hours Saved */}
-              <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none overflow-hidden">
-                {/* Top half — Orders Automated */}
-                <div className="px-4 pt-4 pb-3">
+              {/* Combined: Orders Automated + Time Saved — side by side */}
+              <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-4 flex items-stretch gap-0">
+                {/* Left — Orders Automated */}
+                <div className="flex-1 flex flex-col">
                   <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-green-50 dark:bg-green-900/20">
                     <Sparkles size={18} className="text-green-600 dark:text-green-400" />
                   </div>
@@ -242,11 +242,14 @@ export default function DashboardPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">Orders Automated</p>
                 </div>
 
-                {/* Divider */}
-                <div className="mx-4 border-t border-gray-100 dark:border-white/10" />
+                {/* Vertical divider */}
+                <div className="w-px bg-gray-100 dark:bg-white/10 mx-3 self-stretch" />
 
-                {/* Bottom half — Hours Saved */}
-                <div className="px-4 pt-3 pb-4">
+                {/* Right — Time Saved */}
+                <div className="flex-1 flex flex-col">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-green-50 dark:bg-green-900/20">
+                    <Clock size={18} className="text-green-600 dark:text-green-400" />
+                  </div>
                   <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white">{timeSaved}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">Time Saved</p>
                   <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body mt-0.5">est. 5 min per order</p>
