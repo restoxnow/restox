@@ -160,23 +160,44 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoadingSchedules(false); return }
 
-    const { data, error: schedErr } = await supabase
+    // Query 1: schedules (no embedded join — avoids PGRST200 schema-cache miss)
+    const { data: schedData, error: schedErr } = await supabase
       .from('purchase_schedules')
-      .select(`
-        id, frequency, status, created_at,
-        products!product_id ( id, name, retailers!retailer_id ( id, name ) )
-      `)
+      .select('id, product_id, frequency, status, created_at')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(10)
-    if (schedErr) console.error('[Restox] purchase_schedules join error:', schedErr)
+    if (schedErr) console.error('[Restox] purchase_schedules error:', schedErr)
 
-    const rows = (data as unknown as ScheduleRow[]) ?? []
+    const rawSchedules = (schedData ?? []) as {
+      id: string; product_id: string | null; frequency: string; status: string; created_at: string
+    }[]
+
+    // Query 2: products + retailer name (FK to products is unambiguous here)
+    const productIds = rawSchedules.map(s => s.product_id).filter(Boolean) as string[]
+    const productMap: Record<string, { id: string; name: string; retailers: { id: string; name: string } | null }> = {}
+    if (productIds.length > 0) {
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('id, name, retailers!retailer_id ( id, name )')
+        .in('id', productIds)
+      for (const p of (prodData as any[]) ?? []) {
+        productMap[p.id] = { id: p.id, name: p.name, retailers: p.retailers ?? null }
+      }
+    }
+
+    // Merge into ScheduleRow shape
+    const rows: ScheduleRow[] = rawSchedules.map(s => ({
+      id: s.id,
+      frequency: s.frequency,
+      status: s.status,
+      created_at: s.created_at,
+      products: s.product_id ? (productMap[s.product_id] ?? null) : null,
+    }))
     setSchedules(rows)
 
     // Fetch price comparisons to compute savings badges
-    const productIds = rows.map(s => s.products?.id).filter(Boolean) as string[]
     if (productIds.length > 0) {
       const { data: priceData } = await supabase
         .from('price_comparisons')

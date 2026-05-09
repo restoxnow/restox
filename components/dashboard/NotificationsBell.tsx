@@ -46,16 +46,41 @@ export default function NotificationsBell() {
     if (!user) return
     userIdRef.current = user.id
 
-    const { data, error: bellErr } = await supabase
+    // Query 1: schedules — no embedded join to avoid PGRST200
+    const { data: schedData, error: bellErr } = await supabase
       .from('purchase_schedules')
-      .select('id, frequency, status, products!product_id ( name, retailers!retailer_id ( name ) )')
+      .select('id, product_id, frequency, status')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(20)
     if (bellErr) console.error('[Restox] NotificationsBell purchase_schedules error:', bellErr)
 
-    setSchedules((data as unknown as ScheduleRow[]) ?? [])
+    const rawSchedules = (schedData ?? []) as {
+      id: string; product_id: string | null; frequency: string; status: string
+    }[]
+
+    // Query 2: products + retailer
+    const productIds = rawSchedules.map(s => s.product_id).filter(Boolean) as string[]
+    const productMap: Record<string, { name: string; retailers: { name: string } | null }> = {}
+    if (productIds.length > 0) {
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('id, name, retailers!retailer_id ( name )')
+        .in('id', productIds)
+      for (const p of (prodData as any[]) ?? []) {
+        productMap[p.id] = { name: p.name, retailers: p.retailers ?? null }
+      }
+    }
+
+    // Merge into ScheduleRow shape
+    const merged: ScheduleRow[] = rawSchedules.map(s => ({
+      id: s.id,
+      frequency: s.frequency,
+      status: s.status,
+      products: s.product_id ? (productMap[s.product_id] ?? null) : null,
+    }))
+    setSchedules(merged)
   }, [supabase])
 
   useEffect(() => { fetchSchedules() }, [fetchSchedules])

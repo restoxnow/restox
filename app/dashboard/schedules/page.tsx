@@ -319,17 +319,43 @@ export default function SchedulesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data } = await supabase
+    // Query 1: schedules — no embedded join to avoid PGRST200
+    const { data: schedData } = await supabase
       .from('purchase_schedules')
-      .select(`
-        id, frequency, status, ai_managed,
-        notification_timing, notification_channel, created_at,
-        products!product_id ( name, retailers!retailer_id ( name ) )
-      `)
+      .select('id, product_id, frequency, status, ai_managed, notification_timing, notification_channel, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    setSchedules((data as unknown as Schedule[]) ?? [])
+    const rawSchedules = (schedData ?? []) as {
+      id: string; product_id: string | null; frequency: string; status: string
+      ai_managed: boolean; notification_timing: string; notification_channel: string; created_at: string
+    }[]
+
+    // Query 2: products + retailer
+    const productIds = rawSchedules.map(s => s.product_id).filter(Boolean) as string[]
+    const productMap: Record<string, { name: string; retailers: { name: string } | null }> = {}
+    if (productIds.length > 0) {
+      const { data: prodData } = await supabase
+        .from('products')
+        .select('id, name, retailers!retailer_id ( name )')
+        .in('id', productIds)
+      for (const p of (prodData as any[]) ?? []) {
+        productMap[p.id] = { name: p.name, retailers: p.retailers ?? null }
+      }
+    }
+
+    // Merge into Schedule shape
+    const merged: Schedule[] = rawSchedules.map(s => ({
+      id: s.id,
+      frequency: s.frequency,
+      status: s.status,
+      ai_managed: s.ai_managed,
+      notification_timing: s.notification_timing,
+      notification_channel: s.notification_channel,
+      created_at: s.created_at,
+      products: s.product_id ? (productMap[s.product_id] ?? null) : null,
+    }))
+    setSchedules(merged)
     setLoading(false)
   }, [supabase])
 
