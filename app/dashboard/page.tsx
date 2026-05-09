@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
-  Clock, Store, Package, Plus, CalendarClock,
+  Clock, Store, Package, Plus, CalendarClock, Sparkles,
   CheckCircle, SkipForward, PauseCircle, ChevronRight,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -16,6 +16,7 @@ interface Stats {
   retailers: number
   schedules: number
   products: number
+  automated: number
 }
 
 interface ScheduleRow {
@@ -105,7 +106,7 @@ export default function DashboardPage() {
 
     // Use GET (no head:true) — HEAD requests return 400 on tables downstream
     // of an ambiguous FK chain in PostgREST.
-    const [retailersRes, schedulesRes, productsRes] =
+    const [retailersRes, schedulesRes, productsRes, automatedRes] =
       await Promise.allSettled([
         supabase
           .from('retailers')
@@ -121,12 +122,18 @@ export default function DashboardPage() {
           .from('products')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id),
+        supabase
+          .from('purchase_schedules')
+          .select('id', { count: 'exact' })
+          .eq('user_id', user.id)
+          .in('status', ['confirmed', 'active']),
       ])
 
     setStats({
-      retailers: safeCount('retailers',          retailersRes as any),
-      schedules: safeCount('purchase_schedules', schedulesRes as any),
-      products:  safeCount('products',           productsRes  as any),
+      retailers: safeCount('retailers',          retailersRes  as any),
+      schedules: safeCount('purchase_schedules', schedulesRes  as any),
+      products:  safeCount('products',           productsRes   as any),
+      automated: safeCount('automated',          automatedRes  as any),
     })
     setLoadingStats(false)
   }, [supabase])
@@ -181,6 +188,17 @@ export default function DashboardPage() {
     { key: 'products'  as const, label: 'Products Tracked',    icon: Package, bg: 'bg-purple-50 dark:bg-purple-900/30',      color: 'text-purple-600 dark:text-purple-400', href: '/dashboard/products' },
   ]
 
+  // ---- hours saved helper ------------------------------------------------
+  const automated   = stats?.automated ?? 0
+  const totalMins   = automated * 5
+  const hoursSaved  = Math.floor(totalMins / 60)
+  const minsSaved   = totalMins % 60
+  const timeSaved   = totalMins === 0
+    ? '0m'
+    : hoursSaved > 0
+      ? `${hoursSaved}h ${minsSaved > 0 ? `${minsSaved}m` : ''}`.trim()
+      : `${minsSaved}m`
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
@@ -189,27 +207,53 @@ export default function DashboardPage() {
       </div>
 
       {/* ---- Stats row ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loadingStats
           ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
-          : STAT_DEFS.map(({ key, label, icon: Icon, bg, color, href }) => {
-              const card = (
-                <div className={`bg-white dark:bg-[#16213E] rounded-xl p-4 border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none h-full
-                  ${href ? 'hover:border-gray-300 dark:hover:border-white/20 hover:shadow-md transition-all' : ''}`}
-                >
-                  <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${bg}`}>
-                    <Icon size={18} className={color} />
+          : (
+            <>
+              {STAT_DEFS.map(({ key, label, icon: Icon, bg, color, href }) => {
+                const card = (
+                  <div className={`bg-white dark:bg-[#16213E] rounded-xl p-4 border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none h-full
+                    ${href ? 'hover:border-gray-300 dark:hover:border-white/20 hover:shadow-md transition-all' : ''}`}
+                  >
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center mb-3 ${bg}`}>
+                      <Icon size={18} className={color} />
+                    </div>
+                    <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white">
+                      {stats?.[key] ?? 0}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">{label}</p>
                   </div>
-                  <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white">
-                    {stats?.[key] ?? 0}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">{label}</p>
+                )
+                return href
+                  ? <Link key={key} href={href} className="block">{card}</Link>
+                  : <div key={key}>{card}</div>
+              })}
+
+              {/* Combined: Orders Automated + Hours Saved */}
+              <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none overflow-hidden">
+                {/* Top half — Orders Automated */}
+                <div className="px-4 pt-4 pb-3">
+                  <div className="w-9 h-9 rounded-lg flex items-center justify-center mb-3 bg-green-50 dark:bg-green-900/20">
+                    <Sparkles size={18} className="text-green-600 dark:text-green-400" />
+                  </div>
+                  <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white">{automated}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">Orders Automated</p>
                 </div>
-              )
-              return href
-                ? <Link key={key} href={href} className="block">{card}</Link>
-                : <div key={key}>{card}</div>
-            })
+
+                {/* Divider */}
+                <div className="mx-4 border-t border-gray-100 dark:border-white/10" />
+
+                {/* Bottom half — Hours Saved */}
+                <div className="px-4 pt-3 pb-4">
+                  <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white">{timeSaved}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">Hours Saved</p>
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body mt-0.5">est. 5 min per order</p>
+                </div>
+              </div>
+            </>
+          )
         }
       </div>
 
