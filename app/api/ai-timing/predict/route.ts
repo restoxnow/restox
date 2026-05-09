@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
   const [productRes, scheduleRes, userRes] = await Promise.all([
     supabase
       .from('products')
-      .select('id, name, category, reorder_quantity, retailers ( name )')
+      .select('id, name, category, reorder_quantity, retailers!retailer_id ( name )')
       .eq('id', product_id)
       .eq('user_id', user.id)
       .single(),

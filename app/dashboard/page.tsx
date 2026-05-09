@@ -155,7 +155,7 @@ export default function DashboardPage() {
       .from('purchase_schedules')
       .select(`
         id, frequency, status, created_at,
-        products ( id, name, retailers ( id, name ) )
+        products ( id, name, retailers!retailer_id ( id, name ) )
       `)
       .eq('user_id', user.id)
       .eq('status', 'active')

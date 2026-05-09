@@ -5,7 +5,6 @@
 (function () {
   'use strict';
 
-  var SUPABASE_KEY = 'sb-vjptwvubebxjjkxkzqqe-auth-token';
   var TOAST_ID = 'restox-ext-toast';
 
   // ── Toast (injected on restox.net, no external CSS needed) ────────────
@@ -13,7 +12,7 @@
     var existing = document.getElementById(TOAST_ID);
     if (existing) existing.remove();
 
-    var bg = type === 'error' ? '#dc2626' : '#16a34a';
+    var bg = type === 'error' ? '#dc2626' : type === 'info' ? '#2563eb' : '#16a34a';
 
     var toast = document.createElement('div');
     toast.id = TOAST_ID;
@@ -51,37 +50,78 @@
     try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
   }
 
+  // ── Find Supabase auth token by scanning all localStorage keys ────────
+  function findSupabaseToken() {
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (!key || key.indexOf('auth-token') === -1) continue;
+
+        var raw = localStorage.getItem(key);
+        if (!raw) continue;
+
+        try {
+          var parsed = JSON.parse(raw);
+
+          // @supabase/ssr stores session directly: { access_token, user, ... }
+          var accessToken = parsed.access_token;
+          var user = parsed.user;
+
+          // Older / alternative structure: { currentSession: { access_token, user } }
+          if (!accessToken && parsed.currentSession) {
+            accessToken = parsed.currentSession.access_token;
+            user = parsed.currentSession.user;
+          }
+
+          // Another variant: { data: { session: { access_token, user } } }
+          if (!accessToken && parsed.data && parsed.data.session) {
+            accessToken = parsed.data.session.access_token;
+            user = parsed.data.session.user;
+          }
+
+          if (accessToken) {
+            console.log('[Restox] Found auth token at key:', key, '— token prefix:', accessToken.slice(0, 20));
+            return { accessToken: accessToken, user: user, key: key };
+          }
+        } catch (parseErr) {
+          // Not valid JSON, skip
+        }
+      }
+    } catch (e) {
+      // localStorage unavailable
+    }
+    console.log('[Restox] No auth token found in localStorage');
+    return null;
+  }
+
   // ── Core: sync auth then check for pending product ────────────────────
   function syncAuth() {
     if (!isContextValid()) return;
-    try {
-      var raw = localStorage.getItem(SUPABASE_KEY);
-      if (!raw) return;
 
-      var session = JSON.parse(raw);
-      var accessToken = session && session.access_token;
-      var user = session && session.user;
+    var found = findSupabaseToken();
+    if (!found) return;
 
-      if (!accessToken) return;
+    var accessToken = found.accessToken;
+    var user = found.user;
 
-      // 1. Store the auth token in extension storage
-      chrome.runtime.sendMessage({
-        type: 'STORE_AUTH',
-        token: accessToken,
-        user: user ? { email: user.email, id: user.id } : null,
-      }, function () {
-        // 2. After auth is stored, check for a pending product
-        processPendingProduct(accessToken);
-      });
-    } catch (e) {
-      // localStorage unavailable or chrome.runtime not accessible
-    }
+    // 1. Store the auth token in extension storage
+    chrome.runtime.sendMessage({
+      type: 'STORE_AUTH',
+      token: accessToken,
+      user: user ? { email: user.email, id: user.id } : null,
+    }, function () {
+      if (chrome.runtime.lastError) return;
+      // 2. After auth is stored, check for a pending product
+      processPendingProduct(accessToken);
+    });
   }
 
   function processPendingProduct(token) {
+    if (!isContextValid()) return;
     chrome.runtime.sendMessage(
       { type: 'PROCESS_PENDING_PRODUCT', token: token },
       function (result) {
+        if (chrome.runtime.lastError) return;
         if (!result || result.noPending) return; // nothing to do
 
         if (result.success) {
@@ -103,21 +143,24 @@
   // ── Run on page load ───────────────────────────────────────────────────
   syncAuth();
 
-  // Re-run when localStorage changes (fires after Supabase sets the session
-  // key, which happens on the same page if it's a redirect-based login)
+  // Re-run when localStorage changes (fires when another tab sets the session)
   window.addEventListener('storage', function (e) {
-    if (e.key === SUPABASE_KEY && e.newValue) syncAuth();
+    if (e.key && e.key.indexOf('auth-token') !== -1 && e.newValue) {
+      syncAuth();
+    }
   });
 
-  // Also poll briefly after page load to catch SPA-style logins where the
-  // storage event doesn't fire in the same tab (Supabase PKCE flow)
+  // Poll for same-tab SPA logins (storage event doesn't fire in the originating tab)
   var attempts = 0;
   var poll = setInterval(function () {
     attempts++;
-    if (attempts >= 10) { clearInterval(poll); return; }
+    if (attempts >= 15) { clearInterval(poll); return; }
     try {
-      var raw = localStorage.getItem(SUPABASE_KEY);
-      if (raw) { clearInterval(poll); syncAuth(); }
+      var found = findSupabaseToken();
+      if (found) {
+        clearInterval(poll);
+        syncAuth();
+      }
     } catch (e) { clearInterval(poll); }
-  }, 800);
+  }, 600);
 })();

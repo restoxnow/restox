@@ -476,7 +476,7 @@ export default function ProductsPage() {
     // Fetch products joined with retailers
     const { data: productData } = await supabase
       .from('products')
-      .select('id, name, category, reorder_quantity, product_url, created_at, retailers ( id, name )')
+      .select('id, name, category, reorder_quantity, product_url, created_at, retailers!retailer_id ( id, name )')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 

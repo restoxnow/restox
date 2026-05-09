@@ -324,7 +324,7 @@ export default function SchedulesPage() {
       .select(`
         id, frequency, status, ai_managed,
         notification_timing, notification_channel, created_at,
-        products ( name, retailers ( name ) )
+        products ( name, retailers!retailer_id ( name ) )
       `)
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })

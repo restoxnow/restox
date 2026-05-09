@@ -56,8 +56,10 @@
   // ── Init ─────────────────────────────────────────────────────────────
   chrome.runtime.sendMessage({ type: 'GET_AUTH' }, function (response) {
     if (response && response.token) {
+      console.log('[Restox popup] Token found — prefix:', response.token.slice(0, 20));
       showSignedIn(response.user, response.token);
     } else {
+      console.log('[Restox popup] No token in extension storage — showing signed-out view');
       showSignedOut();
     }
   });

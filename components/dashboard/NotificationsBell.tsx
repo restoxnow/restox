@@ -48,7 +48,7 @@ export default function NotificationsBell() {
 
     const { data } = await supabase
       .from('purchase_schedules')
-      .select('id, frequency, status, products ( name, retailers ( name ) )')
+      .select('id, frequency, status, products ( name, retailers!retailer_id ( name ) )')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })

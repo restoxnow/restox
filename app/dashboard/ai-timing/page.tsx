@@ -392,7 +392,7 @@ export default function AITimingPage() {
     const [productsRes, schedulesRes, timingRes] = await Promise.all([
       supabase
         .from('products')
-        .select('id, name, category, reorder_quantity, retailers ( name )')
+        .select('id, name, category, reorder_quantity, retailers!retailer_id ( name )')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase
