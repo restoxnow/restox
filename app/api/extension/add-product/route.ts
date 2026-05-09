@@ -1,23 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// This route authenticates via Bearer JWT (Supabase access token from the extension)
-// rather than a cookie session, so we use the raw JS client instead of the SSR helper.
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+// This route authenticates via Bearer JWT (Supabase access token from the extension).
+// We create the client per-request with the token in the Authorization header so that
+// auth.uid() resolves correctly in RLS policies for all inserts/selects.
 
 export async function POST(req: NextRequest) {
-  // Verify Bearer token
   const authHeader = req.headers.get('Authorization')
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null
   if (!token) {
     return NextResponse.json({ error: 'Missing authorization token' }, { status: 401 })
   }
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+  // Create a per-request client with the Bearer token so RLS policies
+  // see the correct auth.uid() on every query.
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      global: { headers: { Authorization: `Bearer ${token}` } },
+      auth:   { persistSession: false },
+    }
+  )
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
   if (authError || !user) {
     return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 })
   }
@@ -26,18 +32,28 @@ export async function POST(req: NextRequest) {
   const { name, price, image_url, product_url, retailer_name } = body
 
   if (!name || !retailer_name) {
-    return NextResponse.json({ error: 'Missing required fields: name, retailer_name' }, { status: 400 })
+    return NextResponse.json(
+      { error: 'Missing required fields: name, retailer_name' },
+      { status: 400 }
+    )
   }
 
-  // Find or create retailer record for this user
+  // ── Find or create retailer record ──────────────────────────────────────
   let retailerId: string | null = null
 
-  const { data: existingRetailer } = await supabase
+  const { data: existingRetailer, error: lookupError } = await supabase
     .from('retailers')
     .select('id')
     .eq('user_id', user.id)
     .eq('name', retailer_name)
     .maybeSingle()
+
+  if (lookupError) {
+    return NextResponse.json(
+      { error: 'Retailer lookup failed', detail: lookupError.message },
+      { status: 500 }
+    )
+  }
 
   if (existingRetailer) {
     retailerId = existingRetailer.id
@@ -45,36 +61,42 @@ export async function POST(req: NextRequest) {
     const { data: newRetailer, error: retailerError } = await supabase
       .from('retailers')
       .insert({
-        user_id: user.id,
-        name: retailer_name,
-        connection_type: 'extension',
+        user_id:          user.id,
+        name:             retailer_name,
+        connection_type:  'credentials',
         connection_status: 'connected',
       })
       .select('id')
       .single()
 
     if (retailerError) {
-      return NextResponse.json({ error: 'Failed to create retailer record' }, { status: 500 })
+      return NextResponse.json(
+        { error: 'Failed to create retailer record', detail: retailerError.message },
+        { status: 500 }
+      )
     }
     retailerId = newRetailer.id
   }
 
-  // Insert product
+  // ── Insert product ────────────────────────────────────────────────────────
   const { data: product, error: productError } = await supabase
     .from('products')
     .insert({
-      user_id: user.id,
-      name: name.slice(0, 255),
-      retailer_id: retailerId,
-      category: null,
+      user_id:          user.id,
+      name:             name.slice(0, 255),
+      retailer_id:      retailerId,
+      category:         null,
       reorder_quantity: 1,
-      product_url: product_url ?? null,
+      product_url:      product_url ?? null,
     })
     .select('id')
     .single()
 
   if (productError) {
-    return NextResponse.json({ error: productError.message }, { status: 500 })
+    return NextResponse.json(
+      { error: productError.message },
+      { status: 500 }
+    )
   }
 
   return NextResponse.json({
@@ -89,7 +111,7 @@ export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin':  '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
