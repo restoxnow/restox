@@ -13,7 +13,7 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 // ---------------------------------------------------------------------------
 interface Schedule {
   id: string
-  frequency: string
+  frequency?: string
   status: string
   ai_managed: boolean
   notification_timing: string
@@ -30,24 +30,12 @@ type FilterTab = 'all' | 'active' | 'paused'
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const FREQ_OPTIONS = [
-  { value: 'weekly',     label: 'Weekly' },
-  { value: 'bi-weekly',  label: 'Every 2 weeks' },
-  { value: 'monthly',    label: 'Monthly' },
-  { value: 'quarterly',  label: 'Quarterly' },
-]
-
 const TIMING_OPTIONS = [
   { value: '6hr',  label: '6 hr before' },
   { value: '12hr', label: '12 hr before' },
   { value: '24hr', label: '24 hr before' },
   { value: '48hr', label: '48 hr before' },
 ]
-
-const FREQ_LABEL: Record<string, string> = {
-  weekly: 'Weekly', 'bi-weekly': 'Every 2 weeks',
-  monthly: 'Monthly', quarterly: 'Quarterly', occasional: 'Occasional',
-}
 
 const TIMING_LABEL: Record<string, string> = {
   '6hr': '6 hr before', '12hr': '12 hr before',
@@ -247,14 +235,6 @@ function ScheduleCard({
 
       {/* Controls row */}
       <div className="flex items-center gap-2 flex-wrap">
-        {/* Frequency */}
-        <InlineSelect
-          value={schedule.frequency}
-          options={FREQ_OPTIONS}
-          onChange={v => patch('frequency', v)}
-          disabled={saving === 'frequency'}
-        />
-
         {/* Notification timing */}
         <InlineSelect
           value={schedule.notification_timing}
@@ -320,14 +300,15 @@ export default function SchedulesPage() {
     if (!user) { setLoading(false); return }
 
     // Query 1: schedules — no embedded join to avoid PGRST200
+    // frequency omitted — not present in the live DB schema
     const { data: schedData } = await supabase
       .from('purchase_schedules')
-      .select('id, product_id, frequency, status, ai_managed, notification_timing, notification_channel, created_at')
+      .select('id, product_id, status, ai_managed, notification_timing, notification_channel, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
     const rawSchedules = (schedData ?? []) as {
-      id: string; product_id: string | null; frequency: string; status: string
+      id: string; product_id: string | null; status: string
       ai_managed: boolean; notification_timing: string; notification_channel: string; created_at: string
     }[]
 
@@ -347,7 +328,6 @@ export default function SchedulesPage() {
     // Merge into Schedule shape
     const merged: Schedule[] = rawSchedules.map(s => ({
       id: s.id,
-      frequency: s.frequency,
       status: s.status,
       ai_managed: s.ai_managed,
       notification_timing: s.notification_timing,

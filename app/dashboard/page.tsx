@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
-  Clock, Store, Package, Bell, Plus, CalendarClock,
+  Clock, Store, Package, Plus, CalendarClock,
   CheckCircle, SkipForward, PauseCircle, ChevronRight,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -16,12 +16,11 @@ interface Stats {
   retailers: number
   schedules: number
   products: number
-  ordersThisMonth: number
 }
 
 interface ScheduleRow {
   id: string
-  frequency: string
+  frequency?: string
   status: string
   created_at: string
   products: {
@@ -74,14 +73,6 @@ function ScheduleRowSkeleton() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-const FREQ_LABEL: Record<string, string> = {
-  weekly:     'Weekly',
-  'bi-weekly': 'Every 2 weeks',
-  monthly:    'Monthly',
-  quarterly:  'Quarterly',
-  occasional: 'Occasional',
-}
-
 function safeCount(
   label: string,
   res: PromiseSettledResult<{ count: number | null; error: any }>
@@ -117,13 +108,9 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoadingStats(false); return }
 
-    const monthStart = new Date(
-      new Date().getFullYear(), new Date().getMonth(), 1
-    ).toISOString()
-
-    // Use GET (no head:true) for all counts — HEAD requests return 400 on
-    // tables that sit downstream of an ambiguous FK chain in PostgREST.
-    const [retailersRes, schedulesRes, productsRes, ordersRes] =
+    // Use GET (no head:true) — HEAD requests return 400 on tables downstream
+    // of an ambiguous FK chain in PostgREST.
+    const [retailersRes, schedulesRes, productsRes] =
       await Promise.allSettled([
         supabase
           .from('retailers')
@@ -139,18 +126,12 @@ export default function DashboardPage() {
           .from('products')
           .select('id', { count: 'exact' })
           .eq('user_id', user.id),
-        supabase
-          .from('notification_log')
-          .select('id', { count: 'exact' })
-          .eq('user_id', user.id)
-          .gte('created_at', monthStart),
       ])
 
     setStats({
-      retailers:       safeCount('retailers',         retailersRes as any),
-      schedules:       safeCount('purchase_schedules', schedulesRes as any),
-      products:        safeCount('products',           productsRes  as any),
-      ordersThisMonth: safeCount('notification_log',   ordersRes    as any),
+      retailers: safeCount('retailers',          retailersRes as any),
+      schedules: safeCount('purchase_schedules', schedulesRes as any),
+      products:  safeCount('products',           productsRes  as any),
     })
     setLoadingStats(false)
   }, [supabase])
@@ -161,9 +142,10 @@ export default function DashboardPage() {
     if (!user) { setLoadingSchedules(false); return }
 
     // Query 1: schedules (no embedded join — avoids PGRST200 schema-cache miss)
+    // Note: frequency column omitted — not present in the live DB schema
     const { data: schedData, error: schedErr } = await supabase
       .from('purchase_schedules')
-      .select('id, product_id, frequency, status, created_at')
+      .select('id, product_id, status, created_at')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
@@ -171,7 +153,7 @@ export default function DashboardPage() {
     if (schedErr) console.error('[Restox] purchase_schedules error:', schedErr)
 
     const rawSchedules = (schedData ?? []) as {
-      id: string; product_id: string | null; frequency: string; status: string; created_at: string
+      id: string; product_id: string | null; status: string; created_at: string
     }[]
 
     // Query 2: products + retailer name (FK to products is unambiguous here)
@@ -190,7 +172,6 @@ export default function DashboardPage() {
     // Merge into ScheduleRow shape
     const rows: ScheduleRow[] = rawSchedules.map(s => ({
       id: s.id,
-      frequency: s.frequency,
       status: s.status,
       created_at: s.created_at,
       products: s.product_id ? (productMap[s.product_id] ?? null) : null,
@@ -254,10 +235,9 @@ export default function DashboardPage() {
 
   // ---- stat card definitions ---------------------------------------------
   const STAT_DEFS = [
-    { key: 'retailers'      as const, label: 'Connected Retailers', icon: Store,   bg: 'bg-rx-orange-light dark:bg-rx-orange/10', color: 'text-rx-orange',                       href: '/dashboard/retailers' },
-    { key: 'schedules'      as const, label: 'Active Schedules',    icon: Clock,   bg: 'bg-blue-50 dark:bg-blue-900/30',          color: 'text-blue-600 dark:text-blue-400',     href: '/dashboard/schedules' },
-    { key: 'products'       as const, label: 'Products Tracked',    icon: Package, bg: 'bg-purple-50 dark:bg-purple-900/30',      color: 'text-purple-600 dark:text-purple-400', href: '/dashboard/products' },
-    { key: 'ordersThisMonth' as const, label: 'Orders This Month',  icon: Bell,    bg: 'bg-green-50 dark:bg-green-900/30',        color: 'text-green-600 dark:text-green-400',   href: null },
+    { key: 'retailers' as const, label: 'Connected Retailers', icon: Store,   bg: 'bg-rx-orange-light dark:bg-rx-orange/10', color: 'text-rx-orange',                       href: '/dashboard/retailers' },
+    { key: 'schedules' as const, label: 'Active Schedules',    icon: Clock,   bg: 'bg-blue-50 dark:bg-blue-900/30',          color: 'text-blue-600 dark:text-blue-400',     href: '/dashboard/schedules' },
+    { key: 'products'  as const, label: 'Products Tracked',    icon: Package, bg: 'bg-purple-50 dark:bg-purple-900/30',      color: 'text-purple-600 dark:text-purple-400', href: '/dashboard/products' },
   ]
 
   return (
@@ -268,7 +248,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ---- Stats row ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {loadingStats
           ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
           : STAT_DEFS.map(({ key, label, icon: Icon, bg, color, href }) => {
@@ -355,7 +335,7 @@ export default function DashboardPage() {
                       )}
                     </div>
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                      {retailerName} · {FREQ_LABEL[s.frequency] ?? s.frequency}
+                      {retailerName}
                     </p>
                   </div>
 

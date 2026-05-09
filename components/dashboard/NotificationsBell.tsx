@@ -7,17 +7,12 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 interface ScheduleRow {
   id: string
-  frequency: string
+  frequency?: string
   status: string
   products: {
     name: string
     retailers: { name: string } | null
   } | null
-}
-
-const FREQ_LABEL: Record<string, string> = {
-  weekly: 'Weekly', 'bi-weekly': 'Every 2 weeks',
-  monthly: 'Monthly', quarterly: 'Quarterly', occasional: 'Occasional',
 }
 
 // Fade-out wrapper — animates removal from the list
@@ -47,9 +42,10 @@ export default function NotificationsBell() {
     userIdRef.current = user.id
 
     // Query 1: schedules — no embedded join to avoid PGRST200
+    // frequency omitted — not present in the live DB schema
     const { data: schedData, error: bellErr } = await supabase
       .from('purchase_schedules')
-      .select('id, product_id, frequency, status')
+      .select('id, product_id, status')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
@@ -57,7 +53,7 @@ export default function NotificationsBell() {
     if (bellErr) console.error('[Restox] NotificationsBell purchase_schedules error:', bellErr)
 
     const rawSchedules = (schedData ?? []) as {
-      id: string; product_id: string | null; frequency: string; status: string
+      id: string; product_id: string | null; status: string
     }[]
 
     // Query 2: products + retailer
@@ -76,7 +72,6 @@ export default function NotificationsBell() {
     // Merge into ScheduleRow shape
     const merged: ScheduleRow[] = rawSchedules.map(s => ({
       id: s.id,
-      frequency: s.frequency,
       status: s.status,
       products: s.product_id ? (productMap[s.product_id] ?? null) : null,
     }))
@@ -221,8 +216,7 @@ export default function NotificationsBell() {
                             {productName}
                           </p>
                           <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                            {[retailerName, FREQ_LABEL[s.frequency] ?? s.frequency]
-                              .filter(Boolean).join(' · ')}
+                            {retailerName ?? ''}
                           </p>
                         </div>
                       </div>
