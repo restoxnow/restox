@@ -119,7 +119,7 @@ export default function Hero({ waitlistCount }: HeroProps) {
           </div>
           <div className="text-white text-sm font-body">
             <span className="font-bold text-amber-300">{count > 0 ? count.toLocaleString() : '—'}</span>
-            {count > 0 ? ' people' : ' people'} already on the waitlist
+            {count === 1 ? ' person' : ' people'} already on the waitlist
           </div>
           <svg className="w-4 h-4 text-amber-300 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
