@@ -106,14 +106,35 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
           )}
 
           {tab === 'extension' && (
-            <div className="flex flex-col items-center text-center py-4">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center mb-3">
+            <div className="flex flex-col items-center text-center py-4 gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 dark:bg-purple-900/30 flex items-center justify-center">
                 <Puzzle size={22} className="text-purple-500 dark:text-purple-400" />
               </div>
-              <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">Browser Extension</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
-                Download Extension — Coming Soon. The Restox browser extension will
-                automatically detect and sync your purchases from {retailer.name}.
+              <div>
+                <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">Restox Browser Extension</p>
+                <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
+                  The Restox browser extension lets you add products from any supported retailer with one click.
+                </p>
+              </div>
+              <a
+                href="https://chrome.google.com/webstore"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 bg-rx-orange hover:bg-rx-orange-dark text-white font-semibold
+                  rounded-xl text-sm transition-colors font-body text-center"
+              >
+                Add to Chrome — It&apos;s Free
+              </a>
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-body">Also works with Microsoft Edge</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 font-body">
+                Already installed?{' '}
+                <button
+                  onClick={onClose}
+                  className="text-rx-orange hover:text-rx-orange-dark font-semibold transition-colors"
+                >
+                  Refresh this page
+                </button>
+                {' '}and the extension will connect automatically.
               </p>
             </div>
           )}

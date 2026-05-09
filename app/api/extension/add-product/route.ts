@@ -48,6 +48,17 @@ export async function POST(req: NextRequest) {
 
   const frequencyDays = FREQ_TEXT_TO_DAYS[userRow?.default_frequency ?? 'monthly'] ?? 30
 
+  // ── Upsert retailer so it appears in Connected Retailers section ─────────
+  await supabase.from('retailers').upsert(
+    {
+      user_id:            user.id,
+      name:               retailer_name,
+      connection_type:    'extension',
+      connection_status:  'connected',
+    },
+    { onConflict: 'user_id,name', ignoreDuplicates: false }
+  )
+
   // ── Insert purchase schedule directly (product info stored denormalized) ──
   const { error: scheduleError } = await supabase
     .from('purchase_schedules')
