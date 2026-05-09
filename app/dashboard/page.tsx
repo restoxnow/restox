@@ -118,21 +118,21 @@ export default function DashboardPage() {
       await Promise.allSettled([
         supabase
           .from('retailers')
-          .select('id', { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('connection_status', 'connected'),
         supabase
           .from('purchase_schedules')
-          .select('id', { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .eq('status', 'active'),
         supabase
           .from('products')
-          .select('id', { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id),
         supabase
           .from('notification_log')
-          .select('id', { count: 'exact', head: true })
+          .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
           .gte('created_at', monthStart),
       ])
@@ -155,7 +155,7 @@ export default function DashboardPage() {
       .from('purchase_schedules')
       .select(`
         id, frequency, status, created_at,
-        products ( id, name, retailers!retailer_id ( id, name ) )
+        products!product_id ( id, name, retailers!retailer_id ( id, name ) )
       `)
       .eq('user_id', user.id)
       .eq('status', 'active')

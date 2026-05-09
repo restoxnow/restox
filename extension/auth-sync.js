@@ -1,10 +1,14 @@
 // Runs on restox.net pages — syncs Supabase session to extension storage.
+// @supabase/ssr stores the session in cookies (not localStorage), so we
+// fetch the token from a server-side API endpoint instead of reading
+// localStorage directly.
 // After login, automatically processes any pending product add and returns
 // the user to the original retailer tab.
 
 (function () {
   'use strict';
 
+  var API_URL = '/api/auth/token';
   var TOAST_ID = 'restox-ext-toast';
 
   // ── Toast (injected on restox.net, no external CSS needed) ────────────
@@ -50,69 +54,42 @@
     try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
   }
 
-  // ── Find Supabase auth token by scanning all localStorage keys ────────
-  function findSupabaseToken() {
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var key = localStorage.key(i);
-        if (!key || key.indexOf('auth-token') === -1) continue;
-
-        var raw = localStorage.getItem(key);
-        if (!raw) continue;
-
-        try {
-          var parsed = JSON.parse(raw);
-
-          // @supabase/ssr stores session directly: { access_token, user, ... }
-          var accessToken = parsed.access_token;
-          var user = parsed.user;
-
-          // Older / alternative structure: { currentSession: { access_token, user } }
-          if (!accessToken && parsed.currentSession) {
-            accessToken = parsed.currentSession.access_token;
-            user = parsed.currentSession.user;
-          }
-
-          // Another variant: { data: { session: { access_token, user } } }
-          if (!accessToken && parsed.data && parsed.data.session) {
-            accessToken = parsed.data.session.access_token;
-            user = parsed.data.session.user;
-          }
-
-          if (accessToken) {
-            console.log('[Restox] Found auth token at key:', key, '— token prefix:', accessToken.slice(0, 20));
-            return { accessToken: accessToken, user: user, key: key };
-          }
-        } catch (parseErr) {
-          // Not valid JSON, skip
+  // ── Fetch token from server-side API ──────────────────────────────────
+  function fetchToken(callback) {
+    fetch(API_URL, { credentials: 'include' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.access_token) {
+          console.log('[Restox] Auth token fetched from API — prefix:', data.access_token.slice(0, 20));
+          callback(data.access_token, data.user || null);
+        } else {
+          console.log('[Restox] API returned no token:', data && data.error);
+          callback(null, null);
         }
-      }
-    } catch (e) {
-      // localStorage unavailable
-    }
-    console.log('[Restox] No auth token found in localStorage');
-    return null;
+      })
+      .catch(function (err) {
+        console.log('[Restox] Failed to fetch auth token:', err.message);
+        callback(null, null);
+      });
   }
 
-  // ── Core: sync auth then check for pending product ────────────────────
+  // ── Core: fetch token, store in extension, check for pending product ──
   function syncAuth() {
     if (!isContextValid()) return;
 
-    var found = findSupabaseToken();
-    if (!found) return;
+    fetchToken(function (accessToken, user) {
+      if (!accessToken) return;
 
-    var accessToken = found.accessToken;
-    var user = found.user;
-
-    // 1. Store the auth token in extension storage
-    chrome.runtime.sendMessage({
-      type: 'STORE_AUTH',
-      token: accessToken,
-      user: user ? { email: user.email, id: user.id } : null,
-    }, function () {
-      if (chrome.runtime.lastError) return;
-      // 2. After auth is stored, check for a pending product
-      processPendingProduct(accessToken);
+      // 1. Store auth token in extension storage
+      chrome.runtime.sendMessage({
+        type: 'STORE_AUTH',
+        token: accessToken,
+        user: user ? { email: user.email, id: user.id } : null,
+      }, function () {
+        if (chrome.runtime.lastError) return;
+        // 2. Check for a pending product to process
+        processPendingProduct(accessToken);
+      });
     });
   }
 
@@ -122,7 +99,7 @@
       { type: 'PROCESS_PENDING_PRODUCT', token: token },
       function (result) {
         if (chrome.runtime.lastError) return;
-        if (!result || result.noPending) return; // nothing to do
+        if (!result || result.noPending) return;
 
         if (result.success) {
           showToast(
@@ -140,27 +117,26 @@
     );
   }
 
-  // ── Run on page load ───────────────────────────────────────────────────
+  // ── Run immediately on page load ───────────────────────────────────────
   syncAuth();
 
-  // Re-run when localStorage changes (fires when another tab sets the session)
-  window.addEventListener('storage', function (e) {
-    if (e.key && e.key.indexOf('auth-token') !== -1 && e.newValue) {
-      syncAuth();
-    }
-  });
+  // Re-run after navigation events (SPA route changes, e.g. post-login redirect)
+  window.addEventListener('popstate', function () { syncAuth(); });
 
-  // Poll for same-tab SPA logins (storage event doesn't fire in the originating tab)
+  // Poll briefly to catch post-login redirects where the page doesn't reload
   var attempts = 0;
   var poll = setInterval(function () {
     attempts++;
-    if (attempts >= 15) { clearInterval(poll); return; }
-    try {
-      var found = findSupabaseToken();
-      if (found) {
-        clearInterval(poll);
-        syncAuth();
+    if (attempts >= 10) { clearInterval(poll); return; }
+    if (!isContextValid()) { clearInterval(poll); return; }
+    // Stop polling once we have a token stored
+    chrome.runtime.sendMessage({ type: 'GET_AUTH' }, function (response) {
+      if (chrome.runtime.lastError) { clearInterval(poll); return; }
+      if (response && response.token) {
+        clearInterval(poll); // already have a token, done
+      } else {
+        syncAuth(); // retry fetching
       }
-    } catch (e) { clearInterval(poll); }
-  }, 600);
+    });
+  }, 1500);
 })();
