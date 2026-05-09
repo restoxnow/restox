@@ -46,13 +46,14 @@ export default function NotificationsBell() {
     if (!user) return
     userIdRef.current = user.id
 
-    const { data } = await supabase
+    const { data, error: bellErr } = await supabase
       .from('purchase_schedules')
       .select('id, frequency, status, products!product_id ( name, retailers!retailer_id ( name ) )')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(20)
+    if (bellErr) console.error('[Restox] NotificationsBell purchase_schedules error:', bellErr)
 
     setSchedules((data as unknown as ScheduleRow[]) ?? [])
   }, [supabase])

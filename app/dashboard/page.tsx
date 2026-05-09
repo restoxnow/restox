@@ -83,10 +83,17 @@ const FREQ_LABEL: Record<string, string> = {
 }
 
 function safeCount(
+  label: string,
   res: PromiseSettledResult<{ count: number | null; error: any }>
 ): number {
-  if (res.status === 'rejected') return 0
-  if (res.value.error) return 0
+  if (res.status === 'rejected') {
+    console.error(`[Restox] ${label} count rejected:`, res.reason)
+    return 0
+  }
+  if (res.value.error) {
+    console.error(`[Restox] ${label} count error:`, res.value.error)
+    return 0
+  }
   return res.value.count ?? 0
 }
 
@@ -114,34 +121,36 @@ export default function DashboardPage() {
       new Date().getFullYear(), new Date().getMonth(), 1
     ).toISOString()
 
+    // Use GET (no head:true) for all counts — HEAD requests return 400 on
+    // tables that sit downstream of an ambiguous FK chain in PostgREST.
     const [retailersRes, schedulesRes, productsRes, ordersRes] =
       await Promise.allSettled([
         supabase
           .from('retailers')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('connection_status', 'connected'),
         supabase
           .from('purchase_schedules')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('user_id', user.id)
           .eq('status', 'active'),
         supabase
           .from('products')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('user_id', user.id),
         supabase
           .from('notification_log')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact' })
           .eq('user_id', user.id)
           .gte('created_at', monthStart),
       ])
 
     setStats({
-      retailers:      safeCount(retailersRes as any),
-      schedules:      safeCount(schedulesRes as any),
-      products:       safeCount(productsRes as any),
-      ordersThisMonth: safeCount(ordersRes as any),
+      retailers:       safeCount('retailers',         retailersRes as any),
+      schedules:       safeCount('purchase_schedules', schedulesRes as any),
+      products:        safeCount('products',           productsRes  as any),
+      ordersThisMonth: safeCount('notification_log',   ordersRes    as any),
     })
     setLoadingStats(false)
   }, [supabase])
@@ -151,7 +160,7 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoadingSchedules(false); return }
 
-    const { data } = await supabase
+    const { data, error: schedErr } = await supabase
       .from('purchase_schedules')
       .select(`
         id, frequency, status, created_at,
@@ -161,6 +170,7 @@ export default function DashboardPage() {
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(10)
+    if (schedErr) console.error('[Restox] purchase_schedules join error:', schedErr)
 
     const rows = (data as unknown as ScheduleRow[]) ?? []
     setSchedules(rows)
