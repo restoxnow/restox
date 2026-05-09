@@ -48,11 +48,14 @@
 }
 
 .restox-btn-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
+  width: 16px;
+  height: 16px;
+  padding: 4px;
+  border-radius: 50%;
+  background: #ffffff;
   object-fit: contain;
   flex-shrink: 0;
+  box-sizing: content-box; /* padding is additive → 24×24px total white circle */
 }
 
 .restox-btn-text {
@@ -60,7 +63,8 @@
 }
 
 /* ── Dismiss (✕) button ───────────────────────────────────────────────── */
-/* Appears in the top-right corner of the floating button on hover */
+/* Always visible in the top-right corner; darker-orange circle so it reads
+   clearly against the button without competing with the label. */
 .restox-dismiss {
   position: absolute;
   top: -7px;
@@ -68,28 +72,21 @@
   width: 17px;
   height: 17px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
+  background: #b85a0a;
   color: #ffffff;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
   padding: 0;
-  opacity: 0;
-  transition: opacity 0.15s ease, background 0.15s ease;
-  pointer-events: none;
-}
-
-#restox-add-button:hover .restox-dismiss {
-  opacity: 1;
-  pointer-events: auto;
+  transition: background 0.15s ease;
 }
 
 .restox-dismiss:hover {
-  background: rgba(0, 0, 0, 0.8);
+  background: #8f4408;
 }
 
 /* ── Toast notification ───────────────────────────────────────────────── */
