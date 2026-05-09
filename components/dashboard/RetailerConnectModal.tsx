@@ -1,8 +1,24 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Zap, Puzzle, KeyRound, CheckCircle, Loader2 } from 'lucide-react'
+import { X, Zap, Puzzle, KeyRound, CheckCircle, Loader2, ShieldCheck, ExternalLink } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+
+// Retailers that have an OAuth flow at /api/retailers/oauth/[slug]
+// Keep in sync with OAUTH_CONFIGS in lib/retailer-oauth.ts
+const OAUTH_SLUGS: Record<string, string> = {
+  'Amazon':      'amazon',
+  'Walmart':     'walmart',
+  'Target':      'target',
+  'Kroger':      'kroger',
+  'Instacart':   'instacart',
+  'Albertsons':  'albertsons',
+  'Stop & Shop': 'stopandshop',
+  'Wegmans':     'wegmans',
+  'Sephora':     'sephora',
+  'Chewy':       'chewy',
+  'Home Depot':  'homedepot',
+}
 
 type Tab = 'oauth' | 'extension' | 'credentials'
 
@@ -18,8 +34,11 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [oauthLoading, setOAuthLoading] = useState(false)
   const [error, setError] = useState('')
   const supabase = createSupabaseBrowserClient()
+
+  const oauthSlug = OAUTH_SLUGS[retailer.name] ?? null
 
   const handleCredentialSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -93,16 +112,68 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
         {/* Tab content */}
         <div className="px-6 py-6">
           {tab === 'oauth' && (
-            <div className="flex flex-col items-center text-center py-4">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-3">
-                <Zap size={22} className="text-blue-500 dark:text-blue-400" />
+            oauthSlug ? (
+              /* ── OAuth supported ────────────────────────────────────────── */
+              <div className="flex flex-col items-center text-center py-4 gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Zap size={22} className="text-blue-500 dark:text-blue-400" />
+                </div>
+
+                <div>
+                  <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">
+                    Connect with {retailer.name}
+                  </p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
+                    You&apos;ll be redirected to {retailer.name} to authorize Restox.
+                    Your credentials are never stored — only a secure OAuth token.
+                  </p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setOAuthLoading(true)
+                    window.location.href = `/api/retailers/oauth/${oauthSlug}`
+                  }}
+                  disabled={oauthLoading}
+                  className="w-full py-2.5 bg-rx-orange hover:bg-rx-orange-dark text-white font-semibold
+                    rounded-xl text-sm transition-colors font-body flex items-center justify-center gap-2
+                    disabled:opacity-60"
+                >
+                  {oauthLoading ? (
+                    <><Loader2 size={15} className="animate-spin" /> Redirecting to {retailer.name}…</>
+                  ) : (
+                    <><Zap size={15} /> Authorize with {retailer.name}</>
+                  )}
+                </button>
+
+                <div className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500 font-body">
+                  <ShieldCheck size={12} className="text-green-500 shrink-0" />
+                  Secured with OAuth 2.0 + PKCE — Restox never sees your password
+                </div>
               </div>
-              <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">OAuth Integration</p>
-              <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
-                Coming Soon — OAuth integration with {retailer.name} is pending approval.
-                This will be the most secure connection method.
-              </p>
-            </div>
+            ) : (
+              /* ── OAuth not yet available ─────────────────────────────────── */
+              <div className="flex flex-col items-center text-center py-4 gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Zap size={22} className="text-blue-500 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="font-heading font-semibold text-rx-navy dark:text-white mb-1">
+                    OAuth Not Available
+                  </p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
+                    {retailer.name} does not offer a public OAuth API.
+                    Use the <strong>Credentials</strong> or <strong>Browser Extension</strong> tab instead.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setTab('credentials')}
+                  className="text-xs text-rx-orange hover:text-rx-orange-dark font-semibold font-body transition-colors"
+                >
+                  Switch to Credentials →
+                </button>
+              </div>
+            )
           )}
 
           {tab === 'extension' && (

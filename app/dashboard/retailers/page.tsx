@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import {
   Search, ChevronDown, ChevronRight, CheckCircle, X,
-  Loader2, AlertTriangle, Link2, Calendar,
+  Loader2, AlertTriangle, Link2, Calendar, CheckCircle2, AlertCircle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
@@ -19,6 +19,7 @@ interface Retailer {
   name: string
   domain: string
   credentialsOnly?: boolean
+  subBrands?: string[]
 }
 
 interface Category {
@@ -60,9 +61,13 @@ const CATEGORIES: Category[] = [
     id: 'grocery',
     label: 'Grocery & Wholesale',
     retailers: [
-      { id: 6,  name: 'Kroger',     domain: 'kroger.com' },
-      { id: 7,  name: 'Costco',     domain: 'costco.com' },
-      { id: 8,  name: "Sam's Club", domain: 'samsclub.com' },
+      { id: 6,  name: 'Kroger',        domain: 'kroger.com', subBrands: ["Smith's", "Fry's"] },
+      { id: 7,  name: 'Costco',        domain: 'costco.com',    credentialsOnly: true },
+      { id: 8,  name: "Sam's Club",    domain: 'samsclub.com',  credentialsOnly: true },
+      { id: 12, name: 'Instacart',     domain: 'instacart.com' },
+      { id: 13, name: 'Albertsons',    domain: 'albertsons.com' },
+      { id: 14, name: 'Stop & Shop',   domain: 'stopandshop.com' },
+      { id: 15, name: 'Wegmans',       domain: 'wegmans.com' },
     ],
   },
   {
@@ -76,14 +81,17 @@ const CATEGORIES: Category[] = [
     id: 'pet',
     label: 'Pet Supplies',
     retailers: [
-      { id: 10, name: 'Chewy', domain: 'chewy.com', credentialsOnly: true },
+      { id: 10, name: 'Chewy', domain: 'chewy.com' },
     ],
   },
   {
     id: 'office',
-    label: 'Office & Business',
+    label: 'Office & Business Supplies',
     retailers: [
-      { id: 11, name: 'Staples', domain: 'staples.com' },
+      { id: 11, name: 'Staples',              domain: 'staples.com',  credentialsOnly: true },
+      { id: 16, name: 'Office Depot/OfficeMax', domain: 'officedepot.com' },
+      { id: 17, name: 'Uline',               domain: 'uline.com', credentialsOnly: true },
+      { id: 18, name: 'Grainger',            domain: 'grainger.com', credentialsOnly: true },
     ],
   },
 ]
@@ -268,7 +276,10 @@ export default function RetailersPage() {
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
   const [searchQuery, setSearchQuery]           = useState('')
-  const [collapsed, setCollapsed]               = useState<Record<string, boolean>>({})
+  const [collapsed, setCollapsed]               = useState<Record<string, boolean>>(
+    () => Object.fromEntries(CATEGORIES.map(c => [c.id, true]))
+  )
+  const [oauthBanner, setOAuthBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // ── Fetch connected retailers from DB ────────────────────────────────────
   const fetchRetailers = useCallback(async () => {
@@ -284,6 +295,33 @@ export default function RetailersPage() {
   }, [supabase])
 
   useEffect(() => { fetchRetailers() }, [fetchRetailers])
+
+  // ── Handle OAuth callback return ─────────────────────────────────────────
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    const oauthResult   = params.get('oauth')
+    const oauthRetailer = params.get('retailer')
+    const oauthMessage  = params.get('message')
+
+    if (oauthResult === 'success') {
+      setOAuthBanner({
+        type:    'success',
+        message: `${oauthRetailer ?? 'Retailer'} connected successfully via OAuth!`,
+      })
+      fetchRetailers()
+    } else if (oauthResult === 'error') {
+      setOAuthBanner({
+        type:    'error',
+        message: oauthMessage ?? 'OAuth connection failed. Please try again.',
+      })
+    }
+
+    if (oauthResult) {
+      // Clean query params from URL without reloading
+      window.history.replaceState({}, '', '/dashboard/retailers')
+    }
+  }, [fetchRetailers])
 
   // ── Disconnect handler ───────────────────────────────────────────────────
   const handleDisconnect = useCallback(async (retailer: ConnectedRetailer) => {
@@ -337,6 +375,27 @@ export default function RetailersPage() {
               : 'Connect your stores to start automating purchases'}
         </p>
       </div>
+
+      {/* OAuth result banner */}
+      {oauthBanner && (
+        <div className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm font-body
+          ${oauthBanner.type === 'success'
+            ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800/40 text-green-700 dark:text-green-300'
+            : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-300'
+          }`}>
+          {oauthBanner.type === 'success'
+            ? <CheckCircle2 size={16} className="shrink-0 mt-0.5" />
+            : <AlertCircle  size={16} className="shrink-0 mt-0.5" />
+          }
+          <span className="flex-1">{oauthBanner.message}</span>
+          <button
+            onClick={() => setOAuthBanner(null)}
+            className="shrink-0 text-current opacity-50 hover:opacity-100 transition-opacity"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* ── Connected Retailers section ─────────────────────────────────── */}
       <div ref={connectedSectionRef}>
@@ -477,6 +536,11 @@ export default function RetailersPage() {
                         <span className="text-sm font-medium text-rx-navy dark:text-white font-body leading-tight">
                           {r.name}
                         </span>
+                        {r.subBrands && (
+                          <span className="text-[9px] text-gray-400 dark:text-gray-500 font-body leading-tight -mt-1">
+                            incl. {r.subBrands.join(', ')}
+                          </span>
+                        )}
                         <span className={`text-[10px] font-semibold font-body transition-opacity
                           ${alreadyConnected
                             ? 'text-green-500 dark:text-green-400 opacity-100'
