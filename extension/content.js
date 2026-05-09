@@ -14,6 +14,37 @@
 
   var retailer = match.config;
 
+  // ── Extension context guard ────────────────────────────────────────────
+  // The MV3 service worker can be terminated while this content script is
+  // still live. Any chrome.runtime call after that throws "Extension context
+  // invalidated". Check validity before every call and swallow the error.
+  function isContextValid() {
+    try {
+      return !!(chrome && chrome.runtime && chrome.runtime.id);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function safeSendMessage(msg, callback) {
+    if (!isContextValid()) {
+      // Extension was reloaded — surface a friendly nudge instead of crashing
+      showToast('Restox was updated. Please refresh this page.', 'info');
+      return;
+    }
+    try {
+      chrome.runtime.sendMessage(msg, function (response) {
+        if (chrome.runtime.lastError) {
+          // Swallow "receiving end does not exist" / "context invalidated"
+          return;
+        }
+        if (callback) callback(response);
+      });
+    } catch (e) {
+      showToast('Restox was updated. Please refresh this page.', 'info');
+    }
+  }
+
   // ── Product data extraction ────────────────────────────────────────────
   function querySelector(selectors) {
     var parts = selectors.split(',');
@@ -30,16 +61,18 @@
     var imageEl = querySelector(retailer.selectors.image);
 
     return {
-      name:        titleEl ? titleEl.textContent.trim() : null,
-      price:       priceEl ? (priceEl.textContent || priceEl.getAttribute('content') || '').trim() : null,
-      image_url:   imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || '') : null,
-      product_url: window.location.href,
+      name:          titleEl ? titleEl.textContent.trim() : null,
+      price:         priceEl ? (priceEl.textContent || priceEl.getAttribute('content') || '').trim() : null,
+      image_url:     imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || '') : null,
+      product_url:   window.location.href,
       retailer_name: retailer.name,
     };
   }
 
   // ── Inject floating button ─────────────────────────────────────────────
   function injectButton() {
+    if (document.getElementById(BUTTON_ID)) return; // guard re-injection
+
     var btn = document.createElement('div');
     btn.id = BUTTON_ID;
     btn.innerHTML = [
@@ -57,6 +90,11 @@
     var btn = document.getElementById(BUTTON_ID);
     if (!btn || btn.classList.contains('restox-loading')) return;
 
+    if (!isContextValid()) {
+      showToast('Restox was updated. Please refresh this page.', 'info');
+      return;
+    }
+
     var product = extractProduct();
 
     if (!product.name) {
@@ -64,15 +102,13 @@
       return;
     }
 
-    chrome.runtime.sendMessage({ type: 'GET_AUTH' }, function (response) {
+    safeSendMessage({ type: 'GET_AUTH' }, function (response) {
       if (!response || !response.token) {
-        // Not authenticated — save pending product (background records origin tab ID
-        // from sender.tab.id) then open login page
-        chrome.runtime.sendMessage({
+        // Not authenticated — save pending product and open login
+        safeSendMessage({
           type: 'SAVE_PENDING_AND_LOGIN',
           product: product,
         });
-
         showToast('Sign in to Restox — your product will be saved automatically.', 'info');
         return;
       }
@@ -81,7 +117,7 @@
       btn.classList.add('restox-loading');
       btn.querySelector('.restox-btn-text').textContent = 'Adding…';
 
-      chrome.runtime.sendMessage(
+      safeSendMessage(
         { type: 'ADD_PRODUCT', token: response.token, payload: product },
         function (result) {
           btn.classList.remove('restox-loading');

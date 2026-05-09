@@ -46,8 +46,14 @@
     }, 4000);
   }
 
+  // ── Extension context guard ────────────────────────────────────────────
+  function isContextValid() {
+    try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
+  }
+
   // ── Core: sync auth then check for pending product ────────────────────
   function syncAuth() {
+    if (!isContextValid()) return;
     try {
       var raw = localStorage.getItem(SUPABASE_KEY);
       if (!raw) return;
