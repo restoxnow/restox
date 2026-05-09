@@ -96,7 +96,7 @@
     var btn = document.createElement('div');
     btn.id = BUTTON_ID;
     btn.innerHTML = [
-      '<img src="' + chrome.runtime.getURL('icon.png') + '" class="restox-btn-icon" alt="" />',
+      '<img src="' + chrome.runtime.getURL('logo.png') + '" class="restox-btn-icon" alt="" />',
       '<span class="restox-btn-text">Add to Restox</span>',
       '<button class="restox-dismiss" aria-label="Dismiss" title="Hide button">&#x2715;</button>',
     ].join('');
