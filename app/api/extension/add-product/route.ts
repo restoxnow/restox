@@ -78,6 +78,15 @@ export async function POST(req: NextRequest) {
     retailerId = newRetailer.id
   }
 
+  // ── Fetch user's default frequency ───────────────────────────────────────
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('default_frequency')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  const defaultFrequency = userRow?.default_frequency ?? 'monthly'
+
   // ── Insert product ────────────────────────────────────────────────────────
   const { data: product, error: productError } = await supabase
     .from('products')
@@ -98,6 +107,18 @@ export async function POST(req: NextRequest) {
       { status: 500 }
     )
   }
+
+  // ── Create default purchase schedule ─────────────────────────────────────
+  await supabase.from('purchase_schedules').insert({
+    product_id:            product.id,
+    user_id:               user.id,
+    frequency:             defaultFrequency,
+    status:                'active',
+    ai_managed:            false,
+    notification_timing:   '24hr',
+    confirmation_required: false,
+    notification_channel:  'email',
+  })
 
   return NextResponse.json({
     success: true,

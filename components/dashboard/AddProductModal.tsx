@@ -44,13 +44,24 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
-      const { error: dbError } = await supabase.from('products').insert({
-        user_id: user.id,
-        name: result.name,
-        category: result.category,
-        reorder_quantity: 1,
-      })
+
+      const { data: userRow } = await supabase
+        .from('users').select('default_frequency').eq('id', user.id).maybeSingle()
+      const defaultFrequency = userRow?.default_frequency ?? 'monthly'
+
+      const { data: product, error: dbError } = await supabase
+        .from('products')
+        .insert({ user_id: user.id, name: result.name, category: result.category, reorder_quantity: 1 })
+        .select('id')
+        .single()
       if (dbError) throw dbError
+
+      await supabase.from('purchase_schedules').insert({
+        product_id: product.id, user_id: user.id, frequency: defaultFrequency,
+        status: 'active', ai_managed: false, notification_timing: '24hr',
+        confirmation_required: false, notification_channel: 'email',
+      })
+
       onAdded(result.name)
       onClose()
     } catch (err: any) {
@@ -81,13 +92,23 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
         }
       } catch {}
 
-      const { error: dbError } = await supabase.from('products').insert({
-        user_id: user.id,
-        name: parsedName,
-        product_url: productUrl.trim(),
-        reorder_quantity: 1,
-      })
+      const { data: userRow } = await supabase
+        .from('users').select('default_frequency').eq('id', user.id).maybeSingle()
+      const defaultFrequency = userRow?.default_frequency ?? 'monthly'
+
+      const { data: product, error: dbError } = await supabase
+        .from('products')
+        .insert({ user_id: user.id, name: parsedName, product_url: productUrl.trim(), reorder_quantity: 1 })
+        .select('id')
+        .single()
       if (dbError) throw dbError
+
+      await supabase.from('purchase_schedules').insert({
+        product_id: product.id, user_id: user.id, frequency: defaultFrequency,
+        status: 'active', ai_managed: false, notification_timing: '24hr',
+        confirmation_required: false, notification_channel: 'email',
+      })
+
       onAdded(parsedName)
       onClose()
     } catch (err: any) {

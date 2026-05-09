@@ -62,6 +62,13 @@ export default function SpendAddModal({ item, onClose, onAdded }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
+      const { data: userRow } = await supabase
+        .from('users').select('default_frequency').eq('id', user.id).maybeSingle()
+      const knownFreqs = new Set(['weekly', 'bi-weekly', 'monthly', 'quarterly', 'occasional'])
+      const frequency = knownFreqs.has(item.frequency)
+        ? item.frequency
+        : (userRow?.default_frequency ?? 'monthly')
+
       // Insert product
       const { data: product, error: productError } = await supabase
         .from('products')
@@ -83,7 +90,7 @@ export default function SpendAddModal({ item, onClose, onAdded }: Props) {
         .insert({
           product_id: product.id,
           user_id: user.id,
-          frequency: item.frequency,
+          frequency,
           status: 'active',
           ai_managed: false,
           notification_timing: '24hr',

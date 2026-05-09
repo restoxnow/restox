@@ -78,6 +78,7 @@ function SettingsContent() {
   const [stateAbbr, setStateAbbr] = useState('')
   const [zip, setZip] = useState('')
   const [householdSize, setHouseholdSize] = useState('1')
+  const [defaultFrequency, setDefaultFrequency] = useState('monthly')
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
 
@@ -94,12 +95,13 @@ function SettingsContent() {
       setEmail(user.email ?? '')
       const { data } = await supabase
         .from('users')
-        .select('full_name, shipping_addresses, household_size')
+        .select('full_name, shipping_addresses, household_size, default_frequency')
         .eq('id', user.id)
         .single()
       if (data) {
         setFullName(data.full_name ?? '')
         setHouseholdSize(String(data.household_size ?? 1))
+        setDefaultFrequency(data.default_frequency ?? 'monthly')
         const addrs = data.shipping_addresses
         const addr = Array.isArray(addrs) ? addrs[0] : addrs
         if (addr && typeof addr === 'object') {
@@ -146,6 +148,17 @@ function SettingsContent() {
         await supabase.from('users').upsert({ id: user.id, theme: newTheme }, { onConflict: 'id' })
       }
     } catch { /* silent — localStorage already persists the choice */ }
+  }
+
+  const handleFrequencyChange = async (freq: string) => {
+    setDefaultFrequency(freq)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('users').upsert({ id: user.id, default_frequency: freq }, { onConflict: 'id' })
+        setToast('Default frequency saved!')
+      }
+    } catch { /* silent */ }
   }
 
   const inputCls = `w-full px-4 py-2.5 border rounded-xl text-sm font-body
@@ -351,6 +364,32 @@ function SettingsContent() {
                   </div>
                 </div>
               ))}
+
+              {/* Default reorder frequency */}
+              <div className="pt-4">
+                <label className="block text-sm font-medium text-rx-navy dark:text-white font-body mb-1">
+                  Default reorder frequency
+                </label>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-body mb-3">
+                  Used when adding a new product without a detected frequency.
+                </p>
+                <select
+                  value={defaultFrequency}
+                  onChange={e => handleFrequencyChange(e.target.value)}
+                  className={inputCls}
+                >
+                  {[
+                    { value: 'weekly',      label: 'Weekly' },
+                    { value: 'bi-weekly',   label: 'Every 2 weeks' },
+                    { value: 'monthly',     label: 'Monthly' },
+                    { value: 'six-weekly',  label: 'Every 6 weeks' },
+                    { value: 'bi-monthly',  label: 'Every 2 months' },
+                    { value: 'quarterly',   label: 'Every 3 months' },
+                  ].map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
           )}
 
