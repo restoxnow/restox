@@ -75,6 +75,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${sora.variable} ${jakarta.variable}`} suppressHydrationWarning>
+      <head>
+        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5385038600205472" crossOrigin="anonymous" />
+      </head>
       <body className="font-body antialiased">
         <Providers>{children}</Providers>
       </body>
