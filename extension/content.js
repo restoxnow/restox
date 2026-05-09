@@ -5,9 +5,8 @@
   'use strict';
 
   var BUTTON_ID = 'restox-add-button';
-  var RESTOX_API = 'https://restox.net/api/extension/add-product';
 
-  // Exit immediately if already injected or not a product page
+  // Exit immediately if already injected or not a supported retailer
   if (document.getElementById(BUTTON_ID)) return;
 
   var match = getRetailerConfig();
@@ -30,11 +29,13 @@
     var priceEl = querySelector(retailer.selectors.price);
     var imageEl = querySelector(retailer.selectors.image);
 
-    var title = titleEl ? titleEl.textContent.trim() : null;
-    var price = priceEl ? (priceEl.textContent || priceEl.getAttribute('content') || '').trim() : null;
-    var imageUrl = imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || '') : null;
-
-    return { title: title, price: price, imageUrl: imageUrl };
+    return {
+      name:        titleEl ? titleEl.textContent.trim() : null,
+      price:       priceEl ? (priceEl.textContent || priceEl.getAttribute('content') || '').trim() : null,
+      image_url:   imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || '') : null,
+      product_url: window.location.href,
+      retailer_name: retailer.name,
+    };
   }
 
   // ── Inject floating button ─────────────────────────────────────────────
@@ -47,7 +48,6 @@
     ].join('');
 
     document.body.appendChild(btn);
-
     btn.addEventListener('click', handleClick);
     return btn;
   }
@@ -59,33 +59,30 @@
 
     var product = extractProduct();
 
-    if (!product.title) {
+    if (!product.name) {
       showToast('Could not detect product on this page.', 'error');
       return;
     }
 
-    // Check auth state via background
     chrome.runtime.sendMessage({ type: 'GET_AUTH' }, function (response) {
       if (!response || !response.token) {
-        // Not authenticated — open login page
-        chrome.runtime.sendMessage({ type: 'OPEN_LOGIN' });
+        // Not authenticated — save pending product (background records origin tab ID
+        // from sender.tab.id) then open login page
+        chrome.runtime.sendMessage({
+          type: 'SAVE_PENDING_AND_LOGIN',
+          product: product,
+        });
+
+        showToast('Sign in to Restox — your product will be saved automatically.', 'info');
         return;
       }
 
-      // Authenticated — send product to API
+      // Authenticated — add immediately
       btn.classList.add('restox-loading');
       btn.querySelector('.restox-btn-text').textContent = 'Adding…';
 
-      var payload = {
-        name: product.title,
-        price: product.price,
-        image_url: product.imageUrl,
-        product_url: window.location.href,
-        retailer_name: retailer.name,
-      };
-
       chrome.runtime.sendMessage(
-        { type: 'ADD_PRODUCT', token: response.token, payload: payload },
+        { type: 'ADD_PRODUCT', token: response.token, payload: product },
         function (result) {
           btn.classList.remove('restox-loading');
           if (result && result.success) {
@@ -119,6 +116,5 @@
   }
 
   // ── Init ───────────────────────────────────────────────────────────────
-  // Wait a moment for dynamic pages to settle
   setTimeout(injectButton, 1200);
 })();
