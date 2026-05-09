@@ -10,6 +10,7 @@ import {
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import AddProductModal from '@/components/dashboard/AddProductModal'
 import PriceCompareModal from '@/components/dashboard/PriceCompareModal'
+import AdSlot from '@/components/dashboard/AdSlot'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -655,6 +656,11 @@ export default function ProductsPage() {
             />
           ))}
         </div>
+      )}
+
+      {/* Ad: rectangle after product list */}
+      {!loading && products.length > 0 && (
+        <AdSlot slot="products-rectangle" format="rectangle" className="py-2" />
       )}
 
       {/* Add product modal */}

@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Search, ChevronDown, ChevronRight, CheckCircle, X } from 'lucide-react'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
 import RequestRetailerModal from '@/components/dashboard/RequestRetailerModal'
+import AdSlot from '@/components/dashboard/AdSlot'
 
 interface Retailer {
   id: number
@@ -212,10 +213,14 @@ export default function RetailersPage() {
       )}
 
       {/* Category sections */}
-      {filteredCategories.map(cat => {
+      {filteredCategories.map((cat, catIdx) => {
         const collapsed_ = isCategoryCollapsed(cat.id)
         return (
           <div key={cat.id}>
+            {/* Ad slot between General Merchandise and Home Improvement */}
+            {catIdx === 1 && (
+              <AdSlot slot="retailers-rectangle" format="rectangle" className="mb-6" />
+            )}
             {/* Category header */}
             <button
               onClick={() => toggleCategory(cat.id)}

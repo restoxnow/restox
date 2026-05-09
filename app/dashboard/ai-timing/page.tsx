@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useUser } from '@/contexts/UserContext'
+import AdSlot from '@/components/dashboard/AdSlot'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -511,6 +512,12 @@ export default function AITimingPage() {
             <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-5">
               AI Reorder Timing predicts when you&apos;ll run out before you do — using consumption patterns, household size, and seasonal trends.
             </p>
+            <AdSlot
+              slot="ai-timing-video"
+              format="video"
+              className="mb-3"
+              videoLabel="Watch a short ad to preview this feature"
+            />
             <button className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm">
               Upgrade to Professional — $29/mo
             </button>

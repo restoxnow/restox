@@ -7,6 +7,7 @@ import {
   CheckCircle, SkipForward, PauseCircle, ChevronRight,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import AdSlot from '@/components/dashboard/AdSlot'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -259,6 +260,9 @@ export default function DashboardPage() {
             })
         }
       </div>
+
+      {/* ---- Ad: banner between stats and upcoming orders ---- */}
+      <AdSlot slot="dashboard-home-banner" format="banner" className="w-full" />
 
       {/* ---- Upcoming orders ---- */}
       <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none">

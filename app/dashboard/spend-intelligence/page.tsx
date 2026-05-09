@@ -7,6 +7,7 @@ import { useUser } from '@/contexts/UserContext'
 import { usePlaidLink } from 'react-plaid-link'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import SpendAddModal from '@/components/dashboard/SpendAddModal'
+import AdSlot from '@/components/dashboard/AdSlot'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -354,6 +355,12 @@ export default function SpendIntelligencePage() {
               <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-5">
                 Spend Intelligence scans your purchase history via Plaid, email, or receipt OCR to surface things you buy repeatedly but haven&apos;t automated yet.
               </p>
+              <AdSlot
+                slot="spend-intelligence-video"
+                format="video"
+                className="mb-3"
+                videoLabel="Watch a short ad to preview this feature"
+              />
               <button className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm">
                 Upgrade to Professional — $29/mo
               </button>
