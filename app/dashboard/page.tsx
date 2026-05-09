@@ -207,7 +207,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ---- Stats row ---- */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
         {loadingStats
           ? Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)
           : (
@@ -227,8 +227,8 @@ export default function DashboardPage() {
                   </div>
                 )
                 return href
-                  ? <Link key={key} href={href} className="block">{card}</Link>
-                  : <div key={key}>{card}</div>
+                  ? <Link key={key} href={href} className="block h-full">{card}</Link>
+                  : <div key={key} className="h-full">{card}</div>
               })}
 
               {/* Combined: Orders Automated + Hours Saved */}
@@ -248,7 +248,7 @@ export default function DashboardPage() {
                 {/* Bottom half — Hours Saved */}
                 <div className="px-4 pt-3 pb-4">
                   <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white">{timeSaved}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">Hours Saved</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">Time Saved</p>
                   <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body mt-0.5">est. 5 min per order</p>
                 </div>
               </div>
