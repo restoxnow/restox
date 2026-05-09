@@ -38,6 +38,11 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
     )
   }
 
+  const FREQ_TEXT_TO_DAYS: Record<string, number> = {
+    weekly: 7, 'bi-weekly': 14, monthly: 30,
+    'six-weekly': 42, 'bi-monthly': 60, quarterly: 90,
+  }
+
   const handleAddFromSearch = async (result: typeof MOCK_SEARCH_RESULTS[0]) => {
     setLoading(true)
     setError('')
@@ -47,17 +52,18 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
 
       const { data: userRow } = await supabase
         .from('users').select('default_frequency').eq('id', user.id).maybeSingle()
-      const defaultFrequency = userRow?.default_frequency ?? 'monthly'
+      const frequencyDays = FREQ_TEXT_TO_DAYS[userRow?.default_frequency ?? 'monthly'] ?? 30
 
-      const { data: product, error: dbError } = await supabase
+      // Insert product for the products page
+      const { error: dbError } = await supabase
         .from('products')
         .insert({ user_id: user.id, name: result.name, category: result.category, reorder_quantity: 1 })
-        .select('id')
-        .single()
       if (dbError) throw dbError
 
+      // Insert schedule — product info stored directly, no product_id FK
       await supabase.from('purchase_schedules').insert({
-        product_id: product.id, user_id: user.id, frequency: defaultFrequency,
+        user_id: user.id, product_name: result.name, retailer: result.retailer,
+        quantity: 1, frequency_days: frequencyDays,
         status: 'active', ai_managed: false, notification_timing: '24hr',
         confirmation_required: false, notification_channel: 'email',
       })
@@ -94,17 +100,18 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
 
       const { data: userRow } = await supabase
         .from('users').select('default_frequency').eq('id', user.id).maybeSingle()
-      const defaultFrequency = userRow?.default_frequency ?? 'monthly'
+      const frequencyDays = FREQ_TEXT_TO_DAYS[userRow?.default_frequency ?? 'monthly'] ?? 30
 
-      const { data: product, error: dbError } = await supabase
+      // Insert product for the products page
+      const { error: dbError } = await supabase
         .from('products')
         .insert({ user_id: user.id, name: parsedName, product_url: productUrl.trim(), reorder_quantity: 1 })
-        .select('id')
-        .single()
       if (dbError) throw dbError
 
+      // Insert schedule — product info stored directly, no product_id FK
       await supabase.from('purchase_schedules').insert({
-        product_id: product.id, user_id: user.id, frequency: defaultFrequency,
+        user_id: user.id, product_name: parsedName, product_url: productUrl.trim(),
+        quantity: 1, frequency_days: frequencyDays,
         status: 'active', ai_managed: false, notification_timing: '24hr',
         confirmation_required: false, notification_channel: 'email',
       })

@@ -22,11 +22,13 @@ interface Props {
 }
 
 const FREQ_LABEL: Record<string, string> = {
-  weekly: 'Weekly',
-  'bi-weekly': 'Every 2 weeks',
-  monthly: 'Monthly',
-  quarterly: 'Quarterly',
-  occasional: 'Occasional',
+  weekly: 'Weekly', 'bi-weekly': 'Every 2 weeks',
+  monthly: 'Monthly', quarterly: 'Quarterly', occasional: 'Occasional',
+}
+
+const FREQ_TEXT_TO_DAYS: Record<string, number> = {
+  weekly: 7, 'bi-weekly': 14, monthly: 30,
+  'six-weekly': 42, 'bi-monthly': 60, quarterly: 90, occasional: 30,
 }
 
 export default function SpendAddModal({ item, onClose, onAdded }: Props) {
@@ -64,38 +66,27 @@ export default function SpendAddModal({ item, onClose, onAdded }: Props) {
 
       const { data: userRow } = await supabase
         .from('users').select('default_frequency').eq('id', user.id).maybeSingle()
-      const knownFreqs = new Set(['weekly', 'bi-weekly', 'monthly', 'quarterly', 'occasional'])
-      const frequency = knownFreqs.has(item.frequency)
+      const freqText = item.frequency in FREQ_TEXT_TO_DAYS
         ? item.frequency
         : (userRow?.default_frequency ?? 'monthly')
+      const frequencyDays = FREQ_TEXT_TO_DAYS[freqText] ?? 30
 
-      // Insert product
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .insert({
-          user_id: user.id,
-          name: item.merchant,
-          retailer_id: retailerId || null,
-          category: 'spend-intelligence',
-          reorder_quantity: quantity,
-        })
-        .select('id')
-        .single()
+      const retailerName = retailers.find(r => r.id === retailerId)?.name ?? ''
 
-      if (productError) throw productError
-
-      // Insert purchase schedule
+      // Insert purchase schedule — product info stored directly, no product_id FK
       const { error: scheduleError } = await supabase
         .from('purchase_schedules')
         .insert({
-          product_id: product.id,
-          user_id: user.id,
-          frequency,
-          status: 'active',
-          ai_managed: false,
-          notification_timing: '24hr',
+          user_id:               user.id,
+          product_name:          item.merchant,
+          retailer:              retailerName,
+          quantity,
+          frequency_days:        frequencyDays,
+          status:                'active',
+          ai_managed:            false,
+          notification_timing:   '24hr',
           confirmation_required: false,
-          notification_channel: 'email',
+          notification_channel:  'email',
         })
 
       if (scheduleError) throw scheduleError
@@ -196,7 +187,7 @@ export default function SpendAddModal({ item, onClose, onAdded }: Props) {
           {/* Actions */}
           <button
             onClick={handleConfirm}
-            disabled={loading || retailers.length === 0}
+            disabled={loading}
             className="w-full py-2.5 bg-rx-orange hover:bg-rx-orange-dark text-white font-semibold
               rounded-xl text-sm transition-colors font-body disabled:opacity-60 flex items-center justify-center gap-2"
           >

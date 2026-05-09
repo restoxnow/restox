@@ -13,16 +13,14 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 // ---------------------------------------------------------------------------
 interface Schedule {
   id: string
-  frequency?: string
+  frequency_days: number
   status: string
   ai_managed: boolean
   notification_timing: string
   notification_channel: string
   created_at: string
-  products: {
-    name: string
-    retailers: { name: string } | null
-  } | null
+  product_name: string
+  retailer: string
 }
 
 type FilterTab = 'all' | 'active' | 'paused'
@@ -30,6 +28,20 @@ type FilterTab = 'all' | 'active' | 'paused'
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+const FREQ_DAYS_OPTIONS = [
+  { value: 7,  label: 'Weekly' },
+  { value: 14, label: 'Every 2 weeks' },
+  { value: 30, label: 'Monthly' },
+  { value: 42, label: 'Every 6 weeks' },
+  { value: 60, label: 'Every 2 months' },
+  { value: 90, label: 'Every 3 months' },
+]
+
+const FREQ_DAYS_LABEL: Record<number, string> = {
+  7: 'Weekly', 14: 'Every 2 weeks', 30: 'Monthly',
+  42: 'Every 6 weeks', 60: 'Every 2 months', 90: 'Every 3 months',
+}
+
 const TIMING_OPTIONS = [
   { value: '6hr',  label: '6 hr before' },
   { value: '12hr', label: '12 hr before' },
@@ -183,16 +195,16 @@ function ScheduleCard({
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const productName  = schedule.products?.name ?? 'Unknown product'
-  const retailerName = schedule.products?.retailers?.name ?? '—'
+  const productName  = schedule.product_name || 'Unknown product'
+  const retailerName = schedule.retailer || '—'
 
-  const patch = useCallback(async (field: string, value: string) => {
+  const patch = useCallback(async (field: string, value: string | number) => {
     setSaving(field)
     const { error } = await supabase
       .from('purchase_schedules')
       .update({ [field]: value })
       .eq('id', schedule.id)
-    if (!error) onUpdate(schedule.id, { [field]: value } as any)
+    if (!error) onUpdate(schedule.id, { [field]: value })
     setSaving(null)
   }, [supabase, schedule.id, onUpdate])
 
@@ -235,6 +247,14 @@ function ScheduleCard({
 
       {/* Controls row */}
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Frequency */}
+        <InlineSelect
+          value={String(schedule.frequency_days)}
+          options={FREQ_DAYS_OPTIONS.map(o => ({ value: String(o.value), label: o.label }))}
+          onChange={v => patch('frequency_days', parseInt(v))}
+          disabled={saving === 'frequency_days'}
+        />
+
         {/* Notification timing */}
         <InlineSelect
           value={schedule.notification_timing}
@@ -299,43 +319,13 @@ export default function SchedulesPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    // Query 1: schedules — no embedded join to avoid PGRST200
-    // frequency omitted — not present in the live DB schema
-    const { data: schedData } = await supabase
+    const { data } = await supabase
       .from('purchase_schedules')
-      .select('id, product_id, status, ai_managed, notification_timing, notification_channel, created_at')
+      .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 
-    const rawSchedules = (schedData ?? []) as {
-      id: string; product_id: string | null; status: string
-      ai_managed: boolean; notification_timing: string; notification_channel: string; created_at: string
-    }[]
-
-    // Query 2: products + retailer
-    const productIds = rawSchedules.map(s => s.product_id).filter(Boolean) as string[]
-    const productMap: Record<string, { name: string; retailers: { name: string } | null }> = {}
-    if (productIds.length > 0) {
-      const { data: prodData } = await supabase
-        .from('products')
-        .select('id, name, retailers!retailer_id ( name )')
-        .in('id', productIds)
-      for (const p of (prodData as any[]) ?? []) {
-        productMap[p.id] = { name: p.name, retailers: p.retailers ?? null }
-      }
-    }
-
-    // Merge into Schedule shape
-    const merged: Schedule[] = rawSchedules.map(s => ({
-      id: s.id,
-      status: s.status,
-      ai_managed: s.ai_managed,
-      notification_timing: s.notification_timing,
-      notification_channel: s.notification_channel,
-      created_at: s.created_at,
-      products: s.product_id ? (productMap[s.product_id] ?? null) : null,
-    }))
-    setSchedules(merged)
+    setSchedules((data as Schedule[]) ?? [])
     setLoading(false)
   }, [supabase])
 

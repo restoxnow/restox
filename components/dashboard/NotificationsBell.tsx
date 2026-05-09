@@ -7,12 +7,15 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 interface ScheduleRow {
   id: string
-  frequency?: string
+  frequency_days: number
   status: string
-  products: {
-    name: string
-    retailers: { name: string } | null
-  } | null
+  product_name: string
+  retailer: string
+}
+
+const FREQ_DAYS_LABEL: Record<number, string> = {
+  7: 'Weekly', 14: 'Every 2 weeks', 30: 'Monthly',
+  42: 'Every 6 weeks', 60: 'Every 2 months', 90: 'Every 3 months',
 }
 
 // Fade-out wrapper — animates removal from the list
@@ -41,41 +44,16 @@ export default function NotificationsBell() {
     if (!user) return
     userIdRef.current = user.id
 
-    // Query 1: schedules — no embedded join to avoid PGRST200
-    // frequency omitted — not present in the live DB schema
-    const { data: schedData, error: bellErr } = await supabase
+    const { data, error: bellErr } = await supabase
       .from('purchase_schedules')
-      .select('id, product_id, status')
+      .select('id, product_name, retailer, frequency_days, status')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(20)
     if (bellErr) console.error('[Restox] NotificationsBell purchase_schedules error:', bellErr)
 
-    const rawSchedules = (schedData ?? []) as {
-      id: string; product_id: string | null; status: string
-    }[]
-
-    // Query 2: products + retailer
-    const productIds = rawSchedules.map(s => s.product_id).filter(Boolean) as string[]
-    const productMap: Record<string, { name: string; retailers: { name: string } | null }> = {}
-    if (productIds.length > 0) {
-      const { data: prodData } = await supabase
-        .from('products')
-        .select('id, name, retailers!retailer_id ( name )')
-        .in('id', productIds)
-      for (const p of (prodData as any[]) ?? []) {
-        productMap[p.id] = { name: p.name, retailers: p.retailers ?? null }
-      }
-    }
-
-    // Merge into ScheduleRow shape
-    const merged: ScheduleRow[] = rawSchedules.map(s => ({
-      id: s.id,
-      status: s.status,
-      products: s.product_id ? (productMap[s.product_id] ?? null) : null,
-    }))
-    setSchedules(merged)
+    setSchedules((data as ScheduleRow[]) ?? [])
   }, [supabase])
 
   useEffect(() => { fetchSchedules() }, [fetchSchedules])
@@ -201,9 +179,9 @@ export default function NotificationsBell() {
           ) : (
             <div className="max-h-80 overflow-y-auto divide-y divide-gray-50 dark:divide-white/5">
               {schedules.map(s => {
-                const productName  = s.products?.name ?? 'Unknown product'
-                const retailerName = s.products?.retailers?.name ?? null
-                const isActing     = acting === s.id
+                const isActing = acting === s.id
+                const freqLabel = FREQ_DAYS_LABEL[s.frequency_days] ?? `Every ${s.frequency_days} days`
+                const subLabel = [s.retailer, freqLabel].filter(Boolean).join(' · ')
 
                 return (
                   <FadingRow key={s.id} exiting={exiting.has(s.id)}>
@@ -213,10 +191,10 @@ export default function NotificationsBell() {
                         <CalendarClock size={14} className="text-gray-400 dark:text-gray-500 mt-0.5 shrink-0" />
                         <div className="min-w-0">
                           <p className="text-xs font-semibold text-rx-navy dark:text-white font-body truncate">
-                            {productName}
+                            {s.product_name || 'Unknown product'}
                           </p>
                           <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                            {retailerName ?? ''}
+                            {subLabel}
                           </p>
                         </div>
                       </div>

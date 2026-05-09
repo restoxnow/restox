@@ -20,20 +20,16 @@ interface Stats {
 
 interface ScheduleRow {
   id: string
-  frequency?: string
+  frequency_days: number
   status: string
   created_at: string
-  products: {
-    id: string
-    name: string
-    retailers: { id: string; name: string } | null
-  } | null
+  product_name: string
+  retailer: string
 }
 
-interface PriceComparison {
-  product_id: string
-  retailer_id: string | null
-  price: number
+const FREQ_DAYS_LABEL: Record<number, string> = {
+  7: 'Weekly', 14: 'Every 2 weeks', 30: 'Monthly',
+  42: 'Every 6 weeks', 60: 'Every 2 months', 90: 'Every 3 months',
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +95,6 @@ export default function DashboardPage() {
 
   const [schedules, setSchedules] = useState<ScheduleRow[]>([])
   const [loadingSchedules, setLoadingSchedules] = useState(true)
-  const [savingsMap, setSavingsMap] = useState<Record<string, number>>({})
 
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -141,70 +136,16 @@ export default function DashboardPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoadingSchedules(false); return }
 
-    // Query 1: schedules (no embedded join — avoids PGRST200 schema-cache miss)
-    // Note: frequency column omitted — not present in the live DB schema
-    const { data: schedData, error: schedErr } = await supabase
+    const { data, error: schedErr } = await supabase
       .from('purchase_schedules')
-      .select('id, product_id, status, created_at')
+      .select('id, product_name, retailer, frequency_days, status, created_at')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(10)
     if (schedErr) console.error('[Restox] purchase_schedules error:', schedErr)
 
-    const rawSchedules = (schedData ?? []) as {
-      id: string; product_id: string | null; status: string; created_at: string
-    }[]
-
-    // Query 2: products + retailer name (FK to products is unambiguous here)
-    const productIds = rawSchedules.map(s => s.product_id).filter(Boolean) as string[]
-    const productMap: Record<string, { id: string; name: string; retailers: { id: string; name: string } | null }> = {}
-    if (productIds.length > 0) {
-      const { data: prodData } = await supabase
-        .from('products')
-        .select('id, name, retailers!retailer_id ( id, name )')
-        .in('id', productIds)
-      for (const p of (prodData as any[]) ?? []) {
-        productMap[p.id] = { id: p.id, name: p.name, retailers: p.retailers ?? null }
-      }
-    }
-
-    // Merge into ScheduleRow shape
-    const rows: ScheduleRow[] = rawSchedules.map(s => ({
-      id: s.id,
-      status: s.status,
-      created_at: s.created_at,
-      products: s.product_id ? (productMap[s.product_id] ?? null) : null,
-    }))
-    setSchedules(rows)
-
-    // Fetch price comparisons to compute savings badges
-    if (productIds.length > 0) {
-      const { data: priceData } = await supabase
-        .from('price_comparisons')
-        .select('product_id, retailer_id, price')
-        .in('product_id', productIds)
-        .eq('user_id', user.id)
-
-      if (priceData && priceData.length > 0) {
-        const prices = priceData as PriceComparison[]
-        const newSavings: Record<string, number> = {}
-        for (const s of rows) {
-          const productId = s.products?.id
-          if (!productId) continue
-          const productPrices = prices.filter(p => p.product_id === productId)
-          if (productPrices.length < 2) continue
-          const currentRetailerId = s.products?.retailers?.id
-          const currentPrice = productPrices.find(p => p.retailer_id === currentRetailerId)?.price
-          if (!currentPrice) continue
-          const lowestPrice = Math.min(...productPrices.map(p => p.price))
-          const savings = Math.round((currentPrice - lowestPrice) * 100) / 100
-          if (savings > 0.01) newSavings[s.id] = savings
-        }
-        setSavingsMap(newSavings)
-      }
-    }
-
+    setSchedules((data as ScheduleRow[]) ?? [])
     setLoadingSchedules(false)
   }, [supabase])
 
@@ -314,8 +255,8 @@ export default function DashboardPage() {
         ) : (
           <div className="divide-y divide-gray-50 dark:divide-white/5">
             {schedules.map(s => {
-              const productName  = s.products?.name ?? 'Unknown product'
-              const retailerName = s.products?.retailers?.name ?? '—'
+              const freqLabel = FREQ_DAYS_LABEL[s.frequency_days] ?? `Every ${s.frequency_days} days`
+              const subLabel  = [s.retailer, freqLabel].filter(Boolean).join(' · ')
 
               return (
                 <div key={s.id} className="flex items-center gap-4 px-5 py-4 flex-wrap sm:flex-nowrap">
@@ -324,18 +265,11 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-medium text-rx-navy dark:text-white font-body truncate">
-                        {productName}
-                      </p>
-                      {savingsMap[s.id] && (
-                        <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-500 border border-amber-200 dark:border-amber-800/30 font-body shrink-0">
-                          💰 Save ${savingsMap[s.id].toFixed(2)}
-                        </span>
-                      )}
-                    </div>
+                    <p className="text-sm font-medium text-rx-navy dark:text-white font-body truncate">
+                      {s.product_name || 'Unknown product'}
+                    </p>
                     <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                      {retailerName}
+                      {subLabel}
                     </p>
                   </div>
 
