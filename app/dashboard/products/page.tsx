@@ -9,6 +9,7 @@ import {
   CalendarClock, Trash2, AlertTriangle, ChevronDown, Loader2, BarChart2,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { addAffiliateTag } from '@/lib/amazon-affiliate'
 import AddProductModal from '@/components/dashboard/AddProductModal'
 import PriceCompareModal from '@/components/dashboard/PriceCompareModal'
 import AdSlot from '@/components/dashboard/AdSlot'
@@ -224,7 +225,7 @@ function AddScheduleModal({ product, onClose, onCreated }: {
         user_id: user.id,
         product_name: product.name,
         retailer: product.retailers?.name ?? null,
-        product_url: product.product_url ?? null,
+        product_url: product.product_url ? addAffiliateTag(product.product_url) : null,
         frequency_days: finalFreqDays,
         status: 'active',
         ai_managed: false,
@@ -419,7 +420,7 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
               </p>
               {product.product_url && (
                 <a
-                  href={product.product_url}
+                  href={addAffiliateTag(product.product_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-gray-400 dark:text-gray-500 hover:text-rx-orange transition-colors mt-0.5"

@@ -8,6 +8,25 @@
 
   // Guard against double-injection (e.g. if the script somehow runs twice)
   if (window.__restoxLoaded) return;
+
+  // ── Amazon Associates affiliate tag ────────────────────────────────────
+  var ASSOCIATE_ID = 'restox-20';
+  var AMAZON_HOSTS = [
+    'amazon.com', 'www.amazon.com', 'amazon.co.uk', 'www.amazon.co.uk',
+    'amazon.ca', 'www.amazon.ca', 'amazon.com.au', 'www.amazon.com.au',
+    'amazon.de', 'www.amazon.de', 'amazon.fr', 'www.amazon.fr',
+    'amazon.co.jp', 'www.amazon.co.jp',
+  ];
+  function addAffiliateTag(url) {
+    if (!url) return url;
+    try {
+      var u = new URL(url);
+      if (AMAZON_HOSTS.indexOf(u.hostname) === -1) return url;
+      if (u.searchParams.get('tag') === ASSOCIATE_ID) return url;
+      u.searchParams.set('tag', ASSOCIATE_ID);
+      return u.toString();
+    } catch (e) { return url; }
+  }
   window.__restoxLoaded = true;
 
   // Current retailer config — set by checkAndShow() before injecting the button
@@ -53,7 +72,7 @@
       name:          titleEl ? titleEl.textContent.trim() : null,
       price:         priceEl ? (priceEl.textContent || priceEl.getAttribute('content') || '').trim() : null,
       image_url:     imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || '') : null,
-      product_url:   window.location.href,
+      product_url:   addAffiliateTag(window.location.href),
       retailer_name: retailer.name,
     };
   }

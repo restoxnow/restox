@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Search, ExternalLink, Package, Loader2, CheckCircle, Store } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { addAffiliateTag } from '@/lib/amazon-affiliate'
 
 type Method = 'search' | 'url' | 'history'
 
@@ -103,14 +104,16 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
       const frequencyDays = FREQ_TEXT_TO_DAYS[userRow?.default_frequency ?? 'monthly'] ?? 30
 
       // Insert product for the products page
+      const taggedUrl = addAffiliateTag(productUrl.trim())
+
       const { error: dbError } = await supabase
         .from('products')
-        .insert({ user_id: user.id, name: parsedName, product_url: productUrl.trim(), reorder_quantity: 1 })
+        .insert({ user_id: user.id, name: parsedName, product_url: taggedUrl, reorder_quantity: 1 })
       if (dbError) throw dbError
 
       // Insert schedule — product info stored directly, no product_id FK
       await supabase.from('purchase_schedules').insert({
-        user_id: user.id, product_name: parsedName, product_url: productUrl.trim(),
+        user_id: user.id, product_name: parsedName, product_url: taggedUrl,
         quantity: 1, frequency_days: frequencyDays,
         status: 'active', ai_managed: false, notification_timing: '24hr',
         confirmation_required: false, notification_channel: 'email',

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { addAffiliateTag } from '@/lib/amazon-affiliate'
 
 // Authenticates via Bearer JWT. Per-request client so auth.uid() resolves in RLS.
 
@@ -30,7 +31,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}))
-  const { name, product_url, retailer_name } = body
+  const { name, retailer_name } = body
+  const product_url = body.product_url ? addAffiliateTag(String(body.product_url)) : undefined
 
   if (!name || !retailer_name) {
     return NextResponse.json(
