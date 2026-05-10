@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { X, RefreshCw, CheckCircle, TrendingDown, Loader2, BarChart2 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { addAffiliateTag, isAmazonUrl } from '@/lib/amazon-affiliate'
 
 interface PriceRow {
   id: string
@@ -16,6 +17,7 @@ interface Props {
   product: {
     id: string
     name: string
+    product_url?: string | null
     retailers: { id: string; name: string } | null
   }
   onClose: () => void
@@ -197,11 +199,23 @@ export default function PriceCompareModal({ product, onClose, onRetailerSwitched
                       </p>
                     </div>
 
-                    {/* Price */}
-                    <span className={`text-base font-bold font-heading shrink-0
-                      ${isLowest ? 'text-green-600 dark:text-green-400' : 'text-rx-navy dark:text-white'}`}>
-                      ${row.price.toFixed(2)}
-                    </span>
+                    {/* Price + Amazon link */}
+                    <div className="flex flex-col items-end shrink-0 gap-0.5">
+                      <span className={`text-base font-bold font-heading
+                        ${isLowest ? 'text-green-600 dark:text-green-400' : 'text-rx-navy dark:text-white'}`}>
+                        ${row.price.toFixed(2)}
+                      </span>
+                      {row.retailer_name.toLowerCase().includes('amazon') && product.product_url && isAmazonUrl(product.product_url) && (
+                        <a
+                          href={addAffiliateTag(product.product_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] text-rx-orange hover:text-rx-orange/80 font-body transition-colors"
+                        >
+                          View on Amazon →
+                        </a>
+                      )}
+                    </div>
 
                     {/* Switch button */}
                     {!isCurrent && row.retailer_id && (
