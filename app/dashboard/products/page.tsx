@@ -32,10 +32,10 @@ type FilterTab = 'all' | 'scheduled' | 'unscheduled'
 // Constants
 // ---------------------------------------------------------------------------
 const FREQ_PRESETS = [
-  { value: 7,  label: 'Weekly' },
-  { value: 14, label: 'Every 2 weeks' },
-  { value: 30, label: 'Monthly' },
-  { value: 91, label: 'Quarterly' },
+  { value: 7,  label: 'Weekly',        text: 'weekly' },
+  { value: 14, label: 'Every 2 weeks', text: 'bi-weekly' },
+  { value: 30, label: 'Monthly',       text: 'monthly' },
+  { value: 91, label: 'Quarterly',     text: 'quarterly' },
 ]
 
 type FreqUnit = 'days' | 'weeks' | 'months'
@@ -182,6 +182,7 @@ function AddScheduleModal({ product, onClose, onCreated }: {
 }) {
   const supabase = createSupabaseBrowserClient()
   const [freqDays, setFreqDays]     = useState(30)
+  const [freqText, setFreqText]     = useState('monthly')
   const [isCustom, setIsCustom]     = useState(false)
   const [customNum, setCustomNum]   = useState(6)
   const [customUnit, setCustomUnit] = useState<FreqUnit>('weeks')
@@ -203,7 +204,9 @@ function AddScheduleModal({ product, onClose, onCreated }: {
       setIsCustom(true)
     } else {
       setIsCustom(false)
-      setFreqDays(parseInt(v))
+      const days = parseInt(v)
+      setFreqDays(days)
+      setFreqText(FREQ_PRESETS.find(p => p.value === days)?.text ?? 'custom')
     }
   }
 
@@ -221,6 +224,7 @@ function AddScheduleModal({ product, onClose, onCreated }: {
       const { error: err } = await supabase.from('purchase_schedules').insert({
         product_id: product.id,
         user_id: user.id,
+        frequency: isCustom ? 'custom' : freqText,
         frequency_days: finalFreqDays,
         status: 'active',
         ai_managed: false,
