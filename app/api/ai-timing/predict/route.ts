@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import * as Sentry from '@sentry/nextjs'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { logError } from '@/lib/log-error'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -217,6 +219,8 @@ Return ONLY this JSON object with no other text:
 
     return NextResponse.json({ prediction: { ...result, monthly_forecast } })
   } catch (err: any) {
+    Sentry.captureException(err)
+    await logError({ route: '/api/ai-timing/predict', error: err, userId: user?.id })
     console.error('AI timing error:', err)
     return NextResponse.json({ error: err.message ?? 'Prediction failed' }, { status: 500 })
   }

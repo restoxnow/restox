@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import * as Sentry from '@sentry/nextjs'
 import {
   OAUTH_CONFIGS,
   exchangeCodeForToken,
@@ -23,6 +24,7 @@ import {
   type OAuthStateCookie,
 } from '@/lib/retailer-oauth'
 import { encrypt } from '@/lib/encrypt'
+import { logError } from '@/lib/log-error'
 
 // Service-role Supabase client — bypasses RLS for trusted server-side writes.
 function adminClient() {
@@ -109,6 +111,8 @@ export async function GET(
       clientSecret,
     })
   } catch (err: any) {
+    Sentry.captureException(err)
+    await logError({ route: `/api/retailers/oauth/${retailer}/callback`, error: err, userId: stateCookie.userId })
     console.error(`[Restox] OAuth token exchange error (${retailer}):`, err.message)
     return errorRedirect('Failed to exchange authorization code — please try again')
   }
@@ -138,6 +142,8 @@ export async function GET(
     )
 
   if (upsertError) {
+    Sentry.captureException(upsertError)
+    await logError({ route: `/api/retailers/oauth/${retailer}/callback`, error: upsertError, userId: stateCookie.userId })
     console.error(`[Restox] OAuth DB upsert error (${retailer}):`, upsertError)
     return errorRedirect('Failed to save connection — please try again')
   }

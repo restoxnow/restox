@@ -1,4 +1,10 @@
+'use client'
+
 import Image from 'next/image'
+import { useState } from 'react'
+import dynamic from 'next/dynamic'
+
+const ReportIssueModal = dynamic(() => import('@/components/ReportIssueModal'), { ssr: false })
 
 const socialLinks = [
   {
@@ -49,7 +55,9 @@ const socialLinks = [
 ]
 
 export default function Footer() {
+  const [showReport, setShowReport] = useState(false)
   return (
+    <>
     <footer className="gradient-footer-bg text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="grid md:grid-cols-3 gap-12 mb-12">
@@ -133,6 +141,12 @@ export default function Footer() {
               <a href="/terms" className="block text-white/40 hover:text-white/70 font-body text-xs transition-colors">
                 Terms of Service
               </a>
+              <button
+                onClick={() => setShowReport(true)}
+                className="block text-white/40 hover:text-white/70 font-body text-xs transition-colors"
+              >
+                Report an Issue
+              </button>
             </div>
           </div>
         </div>
@@ -148,5 +162,7 @@ export default function Footer() {
         </div>
       </div>
     </footer>
+    {showReport && <ReportIssueModal onClose={() => setShowReport(false)} />}
+    </>
   )
 }

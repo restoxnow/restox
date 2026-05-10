@@ -3,6 +3,9 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import Sidebar from '@/components/dashboard/Sidebar'
 import NotificationsBell from '@/components/dashboard/NotificationsBell'
 import InactivityTimer from '@/components/dashboard/InactivityTimer'
+import FeedbackButton from '@/components/dashboard/FeedbackButton'
+import ReportIssueLink from '@/components/dashboard/ReportIssueLink'
+import DashboardErrorBoundary from '@/components/dashboard/DashboardErrorBoundary'
 import { UserProvider } from '@/contexts/UserContext'
 import { Search } from 'lucide-react'
 
@@ -38,6 +41,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <UserProvider isAdmin={isAdmin} planTier={planTier}>
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-rx-navy">
       <InactivityTimer />
+      <FeedbackButton />
       <Sidebar
         userName={userName}
         userEmail={userEmail}
@@ -63,7 +67,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-6">
-          {children}
+          <DashboardErrorBoundary>
+            {children}
+          </DashboardErrorBoundary>
         </main>
 
         {/* Footer */}
@@ -76,6 +82,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
             <a href="/terms" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Terms of Service</a>
             <span className="text-gray-200 dark:text-white/10">·</span>
             <a href="mailto:support@restox.net" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">support@restox.net</a>
+            <span className="text-gray-200 dark:text-white/10">·</span>
+            <ReportIssueLink />
           </div>
         </footer>
       </div>

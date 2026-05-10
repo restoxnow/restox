@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import * as Sentry from '@sentry/nextjs'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { createClient } from '@supabase/supabase-js'
 import { decrypt } from '@/lib/encrypt'
+import { logError } from '@/lib/log-error'
 
 const SYNC_RATE_LIMIT_MS = 24 * 60 * 60 * 1000 // 24 hours
 
@@ -121,6 +123,8 @@ export async function POST(req: NextRequest) {
     .not('access_token', 'is', null)
 
   if (retailersError) {
+    Sentry.captureException(retailersError)
+    await logError({ route: '/api/retailers/order-history/sync', error: retailersError, userId })
     return NextResponse.json({ error: 'Failed to fetch retailers' }, { status: 500 })
   }
 
