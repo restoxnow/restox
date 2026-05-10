@@ -22,7 +22,7 @@ interface NavItem {
   href: string
   label: string
   icon: React.ElementType
-  pro?: boolean
+  badge?: string
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -30,8 +30,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/retailers',          label: 'Retailers',          icon: Store },
   { href: '/dashboard/schedules',          label: 'Schedules',          icon: CalendarClock },
   { href: '/dashboard/products',           label: 'Products',           icon: Package },
-  { href: '/dashboard/ai-timing',          label: 'AI Reorder Timing',  icon: BrainCircuit, pro: true },
-  { href: '/dashboard/spend-intelligence', label: 'Spend Intelligence', icon: PieChart,     pro: true },
+  { href: '/dashboard/ai-timing',          label: 'AI Reorder Timing',  icon: BrainCircuit, badge: 'CONSUMER' },
+  { href: '/dashboard/spend-intelligence', label: 'Spend Intelligence', icon: PieChart,     badge: 'PRO' },
   { href: '/dashboard/settings',           label: 'Settings',           icon: Settings },
 ]
 
@@ -92,7 +92,7 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
 
       {/* Nav items */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {NAV_ITEMS.map(({ href, label, icon: Icon, pro }) => {
+        {NAV_ITEMS.map(({ href, label, icon: Icon, badge }) => {
           const active = isActive(href)
           return (
             <Link
@@ -109,9 +109,9 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
               {!collapsed && (
                 <>
                   <span className="font-body text-sm font-medium flex-1 truncate">{label}</span>
-                  {pro && !active && (
+                  {badge && !active && (
                     <span className="text-[10px] font-bold bg-rx-orange/20 text-rx-orange-light px-1.5 py-0.5 rounded">
-                      PRO
+                      {badge}
                     </span>
                   )}
                 </>

@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { User, Bell, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper, CheckCircle, Loader2 } from 'lucide-react'
+import { User, Bell, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper, CheckCircle, Loader2, Users, Lock, Headphones } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { useUserTier } from '@/contexts/UserContext'
 
 const SECTIONS = [
   { id: 'profile',       label: 'Account & Profile',     icon: User },
@@ -18,10 +19,10 @@ const SECTIONS = [
 type SectionId = typeof SECTIONS[number]['id']
 
 const PLANS = [
-  { id: 'free',         label: 'Free',         price: '$0/mo',    schedules: '5 schedules',        features: ['Manual only', 'Ad-supported'] },
-  { id: 'consumer',     label: 'Consumer',     price: '$9.99/mo', schedules: '25 schedules',       features: ['Full automation', 'Ad-free', 'SMS notifications'] },
-  { id: 'professional', label: 'Professional', price: '$29/mo',   schedules: 'Unlimited',          features: ['AI Reorder Timing', 'Spend Intelligence', 'Price auto-switching'] },
-  { id: 'business',     label: 'Business SMB', price: '$79/mo',   schedules: 'Unlimited + API',    features: ['Multi-user seats', 'Approval workflows', 'White-label API'] },
+  { id: 'free',         label: 'Free',         price: '$0/mo',    schedules: '3 schedules · 3 retailers',         features: ['Manual only', 'Ad-supported'] },
+  { id: 'consumer',     label: 'Consumer',     price: '$9.99/mo', schedules: '10 schedules · 5 retailers',        features: ['Price Compare', 'AI Reorder Timing', 'Full automation', 'Ad-free'] },
+  { id: 'professional', label: 'Professional', price: '$29/mo',   schedules: '30 schedules · 10 retailers',       features: ['Spend Intelligence', 'Order History AI', 'Priority support'] },
+  { id: 'business',     label: 'Business',     price: '$79/mo',   schedules: 'Unlimited schedules & retailers',   features: ['Seasonal Forecast', 'Advanced Analytics', 'Multi-user seats', 'Priority support'] },
 ]
 
 const THEME_OPTIONS: { value: string; label: string; icon: React.ElementType }[] = [
@@ -68,6 +69,7 @@ function SettingsContent() {
   )
   const { theme, setTheme } = useTheme()
   const supabase = createSupabaseBrowserClient()
+  const { isBusinessOnly } = useUserTier()
 
   // Billing state
   const [currentPlan, setCurrentPlan] = useState('free')
@@ -543,24 +545,76 @@ function SettingsContent() {
           )}
 
           {section === 'security' && (
-            <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-1">
-              <h2 className="font-heading font-semibold text-rx-navy dark:text-white mb-4">Security</h2>
-              {[
-                { label: 'Change password', desc: 'Update your email/password login',       action: 'Update', danger: false },
-                { label: 'Active sessions', desc: 'View and revoke devices',                action: 'Manage', danger: false },
-                { label: 'Delete account',  desc: 'Permanently delete your Restox account', action: 'Delete', danger: true },
-              ].map(item => (
-                <div key={item.label} className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-white/5 last:border-0">
-                  <div>
-                    <p className={`text-sm font-medium font-body ${item.danger ? 'text-red-500' : 'text-rx-navy dark:text-white'}`}>{item.label}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 font-body">{item.desc}</p>
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-1">
+                <h2 className="font-heading font-semibold text-rx-navy dark:text-white mb-4">Security</h2>
+                {[
+                  { label: 'Change password', desc: 'Update your email/password login',       action: 'Update', danger: false },
+                  { label: 'Active sessions', desc: 'View and revoke devices',                action: 'Manage', danger: false },
+                  { label: 'Delete account',  desc: 'Permanently delete your Restox account', action: 'Delete', danger: true },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-white/5 last:border-0">
+                    <div>
+                      <p className={`text-sm font-medium font-body ${item.danger ? 'text-red-500' : 'text-rx-navy dark:text-white'}`}>{item.label}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 font-body">{item.desc}</p>
+                    </div>
+                    <button className={`text-xs font-semibold px-3 py-1.5 rounded-lg font-body transition-colors
+                      ${item.danger ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30' : 'text-rx-blue dark:text-blue-400 bg-rx-blue/10 hover:bg-rx-blue/20'}`}>
+                      {item.action}
+                    </button>
                   </div>
-                  <button className={`text-xs font-semibold px-3 py-1.5 rounded-lg font-body transition-colors
-                    ${item.danger ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30' : 'text-rx-blue dark:text-blue-400 bg-rx-blue/10 hover:bg-rx-blue/20'}`}>
-                    {item.action}
-                  </button>
+                ))}
+              </div>
+
+              {/* Team Members — Business only */}
+              <div className={`relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 ${!isBusinessOnly ? 'opacity-60' : ''}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Users size={16} className="text-gray-400" />
+                    <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Team Members</h2>
+                  </div>
+                  {!isBusinessOnly && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">
+                      <Lock size={9} /> Business
+                    </span>
+                  )}
                 </div>
-              ))}
+                {isBusinessOnly ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-body">Invite team members to share your Restox workspace.</p>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
+                    Multi-user seats and approval workflows are available on the Business plan.{' '}
+                    <a href="/#pricing" className="text-rx-orange hover:underline">Upgrade →</a>
+                  </p>
+                )}
+              </div>
+
+              {/* Priority Support — Business only */}
+              <div className={`relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 ${!isBusinessOnly ? 'opacity-60' : ''}`}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Headphones size={16} className="text-gray-400" />
+                    <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Priority Support</h2>
+                  </div>
+                  {!isBusinessOnly && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30 px-2 py-0.5 rounded-full">
+                      <Lock size={9} /> Business
+                    </span>
+                  )}
+                </div>
+                {isBusinessOnly ? (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 font-body">
+                    You have dedicated priority support. Email{' '}
+                    <a href="mailto:priority@restox.net" className="text-rx-orange hover:underline">priority@restox.net</a>{' '}
+                    for fastest response.
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
+                    Priority support with dedicated response times is available on the Business plan.{' '}
+                    <a href="/#pricing" className="text-rx-orange hover:underline">Upgrade →</a>
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </div>

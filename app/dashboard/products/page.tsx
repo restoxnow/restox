@@ -6,13 +6,15 @@ import Image from 'next/image'
 import Link from 'next/link'
 import {
   Plus, Package, Search, X, ExternalLink,
-  CalendarClock, Trash2, AlertTriangle, ChevronDown, Loader2, BarChart2,
+  CalendarClock, Trash2, AlertTriangle, ChevronDown, Loader2, BarChart2, Lock,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { addAffiliateTag } from '@/lib/amazon-affiliate'
 import AddProductModal from '@/components/dashboard/AddProductModal'
 import PriceCompareModal from '@/components/dashboard/PriceCompareModal'
+import UpgradePromptModal from '@/components/dashboard/UpgradePromptModal'
 import AdSlot from '@/components/dashboard/AdSlot'
+import { useUserTier } from '@/contexts/UserContext'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,7 +185,7 @@ function AddScheduleModal({ product, onClose, onCreated }: {
   onClose: () => void
   onCreated: (productId: string, scheduleId?: string | null) => void
 }) {
-  const supabase = createSupabaseBrowserClient()
+  const { planTier, bypassGates } = useUserTier()
   const [freqDays, setFreqDays]     = useState(30)
   const [isCustom, setIsCustom]     = useState(false)
   const [customNum, setCustomNum]   = useState(6)
@@ -192,6 +194,7 @@ function AddScheduleModal({ product, onClose, onCreated }: {
   const [timing, setTiming]         = useState('24hr')
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
+  const [showUpgrade, setShowUpgrade] = useState(false)
 
   const computedCustomDays = freqToDays(customNum, customUnit)
   const finalFreqDays = isCustom ? computedCustomDays : freqDays
@@ -218,49 +221,69 @@ function AddScheduleModal({ product, onClose, onCreated }: {
     setLoading(true)
     setError('')
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: product.id,
+          product_name: product.name,
+          retailer: product.retailers?.name ?? null,
+          product_url: product.product_url ? addAffiliateTag(product.product_url) : null,
+          frequency_days: finalFreqDays,
+          status: 'active',
+          ai_managed: false,
+          notification_timing: timing,
+          confirmation_required: false,
+          notification_channel: 'email',
+        }),
+      })
 
-      const payload = {
-        product_id: product.id,
-        user_id: user.id,
-        product_name: product.name,
-        retailer: product.retailers?.name ?? null,
-        product_url: product.product_url ? addAffiliateTag(product.product_url) : null,
-        frequency_days: finalFreqDays,
-        status: 'active',
-        ai_managed: false,
-        notification_timing: timing,
-        confirmation_required: false,
-        notification_channel: 'email',
+      if (res.status === 403) {
+        const json = await res.json()
+        if (json.error === 'cap_reached') {
+          setShowUpgrade(true)
+          return
+        }
+        throw new Error(json.error ?? 'Forbidden')
       }
-      console.log('[AddSchedule] inserting:', payload)
-      const { data: schedData, error: err } = await supabase
-        .from('purchase_schedules')
-        .insert(payload)
-        .select('id')
-        .single()
-      if (err) { console.error('[AddSchedule] error:', err); throw err }
+
+      if (!res.ok) {
+        const json = await res.json()
+        throw new Error(json.error ?? 'Failed to create schedule')
+      }
+
+      const { id: scheduleId } = await res.json()
 
       // Trigger subscription detection non-blocking
       fetch('/api/schedules/detect-subscriptions', { method: 'POST' }).catch(() => {})
 
       // Immediate price fetch in background (fire and forget)
-      if (schedData?.id) {
+      if (scheduleId) {
         fetch('/api/price-compare/fetch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ schedule_id: schedData.id }),
+          body: JSON.stringify({ schedule_id: scheduleId }),
         }).catch(() => {})
       }
 
-      onCreated(product.id, schedData?.id ?? null)
+      onCreated(product.id, scheduleId ?? null)
       onClose()
     } catch (err: any) {
       setError(err.message)
     } finally {
       setLoading(false)
     }
+  }
+
+  if (showUpgrade) {
+    return (
+      <UpgradePromptModal
+        featureName="More Schedules"
+        requiredTier={planTier === 'free' ? 'consumer' : planTier === 'consumer' ? 'professional' : 'business'}
+        currentTier={planTier}
+        onClose={() => { setShowUpgrade(false); onClose() }}
+      />
+    )
   }
 
   return createPortal(
@@ -388,12 +411,14 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
   onScheduleCreated: (productId: string, scheduleId?: string | null) => void
 }) {
   const supabase = createSupabaseBrowserClient()
+  const { isConsumerOrAbove, planTier } = useUserTier()
   const [qty, setQty] = useState(product.reorder_quantity)
   const [savingQty, setSavingQty] = useState(false)
   const [showDelete, setShowDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showAddSchedule, setShowAddSchedule] = useState(false)
   const [showPriceCompare, setShowPriceCompare] = useState(false)
+  const [showPriceUpgrade, setShowPriceUpgrade] = useState(false)
 
   const saveQty = async () => {
     if (qty === product.reorder_quantity) return
@@ -504,13 +529,23 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
             </button>
           )}
 
-          {/* Compare Prices */}
-          <button
-            onClick={() => setShowPriceCompare(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-body"
-          >
-            <BarChart2 size={12} /> Compare Prices
-          </button>
+          {/* Compare Prices — Consumer+ */}
+          {isConsumerOrAbove ? (
+            <button
+              onClick={() => setShowPriceCompare(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors font-body"
+            >
+              <BarChart2 size={12} /> Compare Prices
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowPriceUpgrade(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/10 text-gray-400 dark:text-gray-500 opacity-70 cursor-pointer font-body"
+              title="Upgrade to Consumer to compare prices"
+            >
+              <Lock size={12} /> Compare Prices
+            </button>
+          )}
 
           {/* Delete */}
           <div className="relative ml-auto">
@@ -546,6 +581,16 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
           onRetailerSwitched={(retailerId, retailerName) => {
             onUpdate(product.id, { retailers: { id: retailerId, name: retailerName } })
           }}
+        />
+      )}
+
+      {showPriceUpgrade && (
+        <UpgradePromptModal
+          featureName="Price Compare"
+          requiredTier="consumer"
+          currentTier={planTier}
+          description="Compare prices across all your connected retailers to always get the best deal."
+          onClose={() => setShowPriceUpgrade(false)}
         />
       )}
     </>

@@ -10,7 +10,10 @@ import {
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
 import RequestRetailerModal from '@/components/dashboard/RequestRetailerModal'
+import UpgradePromptModal from '@/components/dashboard/UpgradePromptModal'
 import AdSlot from '@/components/dashboard/AdSlot'
+import { useUser, useUserTier } from '@/contexts/UserContext'
+import { TIER_CAPS, TIER_LABELS } from '@/lib/tier-caps'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -454,11 +457,13 @@ function ConnectedRetailerCard({
 export default function RetailersPage() {
   const supabase = createSupabaseBrowserClient()
   const connectedSectionRef = useRef<HTMLDivElement>(null)
+  const { planTier, bypassGates, caps } = useUserTier()
 
   const [dbRetailers, setDbRetailers]         = useState<ConnectedRetailer[]>([])
   const [loadingRetailers, setLoadingRetailers] = useState(true)
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [searchQuery, setSearchQuery]           = useState('')
   const [collapsed, setCollapsed]               = useState<Record<string, boolean>>(
     () => Object.fromEntries(CATEGORIES.map(c => [c.id, true]))
@@ -707,6 +712,8 @@ export default function RetailersPage() {
                         onClick={() => {
                           if (alreadyConnected) {
                             connectedSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          } else if (!bypassGates && dbRetailers.length >= caps.retailers) {
+                            setShowUpgradePrompt(true)
                           } else {
                             setSelectedRetailer(r)
                           }
@@ -764,6 +771,15 @@ export default function RetailersPage() {
       )}
       {showRequestModal && (
         <RequestRetailerModal onClose={() => setShowRequestModal(false)} />
+      )}
+      {showUpgradePrompt && (
+        <UpgradePromptModal
+          featureName="More Retailers"
+          requiredTier={planTier === 'free' ? 'consumer' : planTier === 'consumer' ? 'professional' : 'business'}
+          currentTier={planTier}
+          description={`Your ${TIER_LABELS[planTier] ?? planTier} plan supports up to ${caps.retailers} retailers. Upgrade to connect more.`}
+          onClose={() => setShowUpgradePrompt(false)}
+        />
       )}
     </div>
   )

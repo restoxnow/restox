@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Lock, CreditCard, Mail, Camera, PieChart, RefreshCw, Plus, Building2, ChevronDown, X, CheckCircle } from 'lucide-react'
-import { useUser } from '@/contexts/UserContext'
+import { useUser, useUserTier } from '@/contexts/UserContext'
+import UpgradePromptModal from '@/components/dashboard/UpgradePromptModal'
 import { usePlaidLink } from 'react-plaid-link'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import SpendAddModal from '@/components/dashboard/SpendAddModal'
@@ -217,7 +218,9 @@ function IgnoredRow({ merchant, onRestore }: { merchant: string; onRestore: (m: 
 // ---------------------------------------------------------------------------
 export default function SpendIntelligencePage() {
   const { hasProAccess } = useUser()
+  const { isBusinessOnly, planTier } = useUserTier()
   const supabase = createSupabaseBrowserClient()
+  const [showAnalyticsUpgrade, setShowAnalyticsUpgrade] = useState(false)
 
   const [recurring, setRecurring] = useState<RecurringItem[]>([])
   const [connected, setConnected] = useState(false)
@@ -361,10 +364,13 @@ export default function SpendIntelligencePage() {
                 className="mb-3"
                 videoLabel="Watch a short ad to preview this feature"
               />
-              <button className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm">
+              <a
+                href="/#pricing"
+                className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm"
+              >
                 Upgrade to Professional — $29/mo
-              </button>
-              <a href="/dashboard/settings" className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 font-body transition-colors">
+              </a>
+              <a href="/#pricing" className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 font-body transition-colors">
                 View all plans
               </a>
             </div>
@@ -509,6 +515,43 @@ export default function SpendIntelligencePage() {
         </>
       )}
 
+      {/* Advanced Analytics — Business only */}
+      {hasProAccess && (
+        <div className="relative rounded-2xl overflow-hidden">
+          <div className={`bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm p-6 ${isBusinessOnly ? '' : 'blur-sm pointer-events-none select-none opacity-60'}`}>
+            <div className="flex items-center gap-3 mb-4">
+              <PieChart size={20} className="text-purple-500" />
+              <h3 className="font-heading font-semibold text-rx-navy dark:text-white">Advanced Analytics</h3>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              {['Spend by Category', 'Monthly Trend', 'Retailer Breakdown'].map(label => (
+                <div key={label} className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 text-center">
+                  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-body">{label}</p>
+                  <div className="mt-2 h-8 bg-gray-200 dark:bg-white/10 rounded-lg" />
+                </div>
+              ))}
+            </div>
+          </div>
+          {!isBusinessOnly && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-rx-navy/80 backdrop-blur-[2px] rounded-2xl">
+              <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-3">
+                <Lock size={20} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <h3 className="font-heading font-bold text-rx-navy dark:text-white mb-1">Business Feature</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-4">
+                Advanced Analytics gives you deep spend insights, category breakdowns, and trend reports across your entire household.
+              </p>
+              <button
+                onClick={() => setShowAnalyticsUpgrade(true)}
+                className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-sm transition-colors font-body"
+              >
+                Upgrade to Business — $79/mo
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Add to Restox modal */}
       {addingItem && (
         <SpendAddModal
@@ -520,6 +563,16 @@ export default function SpendIntelligencePage() {
 
       {/* Success toast */}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
+
+      {showAnalyticsUpgrade && (
+        <UpgradePromptModal
+          featureName="Advanced Analytics"
+          requiredTier="business"
+          currentTier={planTier}
+          description="Advanced Analytics gives you deep spend insights, category breakdowns, and trend reports."
+          onClose={() => setShowAnalyticsUpgrade(false)}
+        />
+      )}
     </div>
   )
 }

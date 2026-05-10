@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { createClient } from '@supabase/supabase-js'
 import {
   OAUTH_CONFIGS,
   buildAuthUrl,
@@ -28,6 +29,15 @@ import {
   COOKIE_TTL,
   type OAuthStateCookie,
 } from '@/lib/retailer-oauth'
+import { TIER_CAPS, type PlanTier } from '@/lib/tier-caps'
+
+function adminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  )
+}
 
 export async function GET(
   req: NextRequest,
@@ -61,7 +71,34 @@ export async function GET(
     )
   }
 
-  // ── 4. Generate PKCE + state ──────────────────────────────────────────────
+  // ── 4. Check retailer tier cap ────────────────────────────────────────────
+  const admin = adminClient()
+  const { data: profile } = await admin
+    .from('users')
+    .select('plan_tier, is_admin')
+    .eq('id', user.id)
+    .single()
+
+  const planTier = ((profile?.plan_tier as string | null) ?? 'free') as PlanTier
+  const isAdmin  = profile?.is_admin ?? false
+
+  if (!isAdmin) {
+    const cap = TIER_CAPS[planTier]?.retailers ?? TIER_CAPS.free.retailers
+    if (cap !== Infinity) {
+      const { count } = await admin
+        .from('retailers')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+
+      if ((count ?? 0) >= cap) {
+        return errorRedirect(
+          `You have reached the retailer limit for your ${planTier} plan (${cap} retailers). Upgrade to connect more.`
+        )
+      }
+    }
+  }
+
+  // ── 5. Generate PKCE + state ──────────────────────────────────────────────
   const { verifier, challenge } = generatePKCE()
   const nonce = generateStateNonce()
 

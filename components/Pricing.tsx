@@ -5,9 +5,11 @@ type Plan = {
   name: string
   badge?: string
   price: string
+  annualPrice?: string
+  annualPeriod?: string
   period: string
-  altPrice?: string
-  altPeriod?: string
+  retailers: string
+  schedules: string
   features: string[]
   cta: string
   ctaHref: string
@@ -21,9 +23,10 @@ const plans: Plan[] = [
     badge: 'Start Here',
     price: '$0',
     period: '/month',
+    retailers: '3 retailers',
+    schedules: '3 schedules',
     features: [
-      'Up to 5 purchase schedules',
-      'Manual ordering',
+      'Manual ordering only',
       'Basic dashboard',
       'Contextual ads',
     ],
@@ -35,13 +38,15 @@ const plans: Plan[] = [
     badge: 'Most Popular',
     price: '$9.99',
     period: '/month',
-    altPrice: '$89',
-    altPeriod: '/year',
+    annualPrice: '$89',
+    annualPeriod: '/year',
+    retailers: '5 retailers',
+    schedules: '10 schedules',
     features: [
-      'Up to 25 purchase schedules',
+      'Price Compare',
+      'AI Reorder Timing',
       'Full automation',
       'Ad-free experience',
-      'All supported retailers',
       'Email notifications',
     ],
     cta: 'Join Waitlist',
@@ -53,13 +58,14 @@ const plans: Plan[] = [
     name: 'Professional',
     price: '$29',
     period: '/month',
-    altPrice: '$269',
-    altPeriod: '/year',
+    annualPrice: '$269',
+    annualPeriod: '/year',
+    retailers: '10 retailers',
+    schedules: '30 schedules',
     features: [
-      'Unlimited schedules',
-      'AI Reorder Timing',
+      'Everything in Consumer',
       'Spend Intelligence',
-      'Ad-free experience',
+      'Order History AI',
       'Priority support',
     ],
     cta: 'Join Waitlist',
@@ -69,23 +75,53 @@ const plans: Plan[] = [
     name: 'Business',
     price: '$79',
     period: '/month',
-    altPrice: '$749',
-    altPeriod: '/year',
+    annualPrice: '$749',
+    annualPeriod: '/year',
+    retailers: 'Unlimited retailers',
+    schedules: 'Unlimited schedules',
     features: [
       'Everything in Professional',
+      'Seasonal Forecasting',
+      'Advanced Analytics',
       'Multi-user seats',
       'Approval workflows',
-      'PO & invoice analysis',
-      'White-label API access',
-      'Dedicated support',
+      'Priority support',
     ],
     cta: 'Contact Us',
     ctaHref: 'mailto:hello@restox.net',
   },
 ]
 
+// Feature comparison table rows
+const FEATURE_TABLE = [
+  { label: 'Retailers',                  free: '3',   consumer: '5',   professional: '10',  business: 'Unlimited' },
+  { label: 'Schedules',                  free: '3',   consumer: '10',  professional: '30',  business: 'Unlimited' },
+  { label: 'Price Compare',             free: false, consumer: true,  professional: true,  business: true },
+  { label: 'AI Reorder Timing',         free: false, consumer: true,  professional: true,  business: true },
+  { label: 'Spend Intelligence',        free: false, consumer: false, professional: true,  business: true },
+  { label: 'Order History AI',          free: false, consumer: false, professional: true,  business: true },
+  { label: 'Seasonal Forecasting',      free: false, consumer: false, professional: false, business: true },
+  { label: 'Advanced Analytics',        free: false, consumer: false, professional: false, business: true },
+  { label: 'Multi-user / Team',         free: false, consumer: false, professional: false, business: true },
+  { label: 'Priority Support',          free: false, consumer: false, professional: false, business: true },
+  { label: 'Ad-free',                   free: false, consumer: true,  professional: true,  business: true },
+]
+
+function Check() {
+  return (
+    <svg className="w-4 h-4 text-orange-500 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
+function Dash() {
+  return <span className="text-gray-300 block text-center">—</span>
+}
+
 export default function Pricing() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
+  const [showTable, setShowTable] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -191,25 +227,30 @@ export default function Pricing() {
                   {plan.name}
                 </h3>
 
+                {/* Caps */}
+                <p className={`text-xs font-body mb-3 ${plan.highlight ? 'text-white/70' : 'text-brand-light'}`}>
+                  {plan.retailers} · {plan.schedules}
+                </p>
+
                 {/* Price */}
-                <div className="mt-4 mb-6">
+                <div className="mt-2 mb-6">
                   <div className="flex items-end gap-1">
                     <span
                       className={`font-heading font-extrabold text-4xl leading-none ${
                         plan.highlight ? 'text-white' : 'text-brand-dark'
                       }`}
                     >
-                      {billing === 'annual' && plan.altPrice ? plan.altPrice : plan.price}
+                      {billing === 'annual' && plan.annualPrice ? plan.annualPrice : plan.price}
                     </span>
                     <span
                       className={`font-body text-sm mb-1 ${
                         plan.highlight ? 'text-white/70' : 'text-brand-light'
                       }`}
                     >
-                      {billing === 'annual' && plan.altPeriod ? plan.altPeriod : plan.period}
+                      {billing === 'annual' && plan.annualPeriod ? plan.annualPeriod : plan.period}
                     </span>
                   </div>
-                  {billing === 'annual' && plan.altPrice && (
+                  {billing === 'annual' && plan.annualPrice && (
                     <p className={`text-xs mt-1 font-body ${plan.highlight ? 'text-white/60' : 'text-brand-light'}`}>
                       Billed annually
                     </p>
@@ -253,6 +294,46 @@ export default function Pricing() {
             </div>
           ))}
         </div>
+
+        {/* Feature comparison table toggle */}
+        <div className="mt-12 text-center">
+          <button
+            onClick={() => setShowTable(t => !t)}
+            className="text-sm font-semibold text-brand-mid hover:text-orange-500 transition-colors font-body"
+          >
+            {showTable ? 'Hide' : 'Compare all features'} ↕
+          </button>
+        </div>
+
+        {showTable && (
+          <div className="mt-6 overflow-x-auto rounded-2xl border border-brand-border bg-white shadow-card">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-brand-border">
+                  <th className="text-left px-5 py-4 font-heading font-bold text-brand-dark w-48">Feature</th>
+                  {['Free', 'Consumer', 'Professional', 'Business'].map(n => (
+                    <th key={n} className="px-4 py-4 font-heading font-bold text-brand-dark text-center">{n}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {FEATURE_TABLE.map((row, i) => (
+                  <tr key={row.label} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
+                    <td className="px-5 py-3 text-brand-mid font-body">{row.label}</td>
+                    {(['free', 'consumer', 'professional', 'business'] as const).map(tier => (
+                      <td key={tier} className="px-4 py-3 text-center font-body text-brand-mid">
+                        {typeof row[tier] === 'boolean'
+                          ? row[tier] ? <Check /> : <Dash />
+                          : <span className="text-xs font-semibold">{row[tier]}</span>
+                        }
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </section>
   )

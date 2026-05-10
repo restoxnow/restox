@@ -7,7 +7,8 @@ import {
   RefreshCw, Snowflake, Sun, Calendar, Loader2, X, CheckCircle, AlertTriangle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
-import { useUser } from '@/contexts/UserContext'
+import { useUser, useUserTier } from '@/contexts/UserContext'
+import UpgradePromptModal from '@/components/dashboard/UpgradePromptModal'
 import AdSlot from '@/components/dashboard/AdSlot'
 
 // ---------------------------------------------------------------------------
@@ -374,8 +375,10 @@ const SAMPLE_ROWS = [
 // Main page
 // ---------------------------------------------------------------------------
 export default function AITimingPage() {
-  const { hasProAccess } = useUser()
+  const { isConsumerOrAbove, isBusinessOnly, planTier } = useUserTier()
+  const hasProAccess = isConsumerOrAbove  // AI Timing is Consumer+
   const supabase = createSupabaseBrowserClient()
+  const [showSeasonalUpgrade, setShowSeasonalUpgrade] = useState(false)
 
   const [items, setItems] = useState<ProductWithTiming[]>([])
   const [loading, setLoading] = useState(true)
@@ -508,7 +511,7 @@ export default function AITimingPage() {
             <div className="w-14 h-14 rounded-2xl bg-rx-orange-light dark:bg-rx-orange/10 flex items-center justify-center mb-4">
               <Lock size={24} className="text-rx-orange" />
             </div>
-            <h3 className="font-heading font-bold text-rx-navy dark:text-white text-lg mb-1">Professional Feature</h3>
+            <h3 className="font-heading font-bold text-rx-navy dark:text-white text-lg mb-1">Consumer Feature</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-5">
               AI Reorder Timing predicts when you&apos;ll run out before you do — using consumption patterns, household size, and seasonal trends.
             </p>
@@ -518,10 +521,13 @@ export default function AITimingPage() {
               className="mb-3"
               videoLabel="Watch a short ad to preview this feature"
             />
-            <button className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm">
-              Upgrade to Professional — $29/mo
-            </button>
-            <a href="/dashboard/settings" className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 font-body transition-colors">
+            <a
+              href="/#pricing"
+              className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm"
+            >
+              Upgrade to Consumer — $9.99/mo
+            </a>
+            <a href="/#pricing" className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 font-body transition-colors">
               View all plans
             </a>
           </div>
@@ -626,6 +632,51 @@ export default function AITimingPage() {
             />
           ))}
         </div>
+      )}
+
+      {/* Seasonal Forecast — Business only */}
+      <div className="relative rounded-2xl overflow-hidden">
+        <div className={`bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm p-6 ${isBusinessOnly ? '' : 'blur-sm pointer-events-none select-none'}`}>
+          <div className="flex items-center gap-3 mb-4">
+            <Snowflake size={20} className="text-blue-500" />
+            <h3 className="font-heading font-semibold text-rx-navy dark:text-white">Seasonal Forecast</h3>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {['Winter', 'Spring', 'Summer', 'Fall'].map(s => (
+              <div key={s} className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 text-center">
+                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-body">{s}</p>
+                <p className="text-lg font-bold font-heading text-rx-navy dark:text-white mt-1">–</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        {!isBusinessOnly && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-rx-navy/80 backdrop-blur-[2px] rounded-2xl">
+            <div className="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center mb-3">
+              <Lock size={20} className="text-purple-600 dark:text-purple-400" />
+            </div>
+            <h3 className="font-heading font-bold text-rx-navy dark:text-white mb-1">Business Feature</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-4">
+              Seasonal Forecasting adjusts reorder predictions based on seasonal demand patterns across your household.
+            </p>
+            <button
+              onClick={() => setShowSeasonalUpgrade(true)}
+              className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-xl text-sm transition-colors font-body"
+            >
+              Upgrade to Business — $79/mo
+            </button>
+          </div>
+        )}
+      </div>
+
+      {showSeasonalUpgrade && (
+        <UpgradePromptModal
+          featureName="Seasonal Forecast"
+          requiredTier="business"
+          currentTier={planTier}
+          description="Seasonal Forecasting adjusts predictions based on demand patterns across seasons."
+          onClose={() => setShowSeasonalUpgrade(false)}
+        />
       )}
     </div>
   )
