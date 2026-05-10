@@ -8,6 +8,7 @@ import ReportIssueLink from '@/components/dashboard/ReportIssueLink'
 import DashboardErrorBoundary from '@/components/dashboard/DashboardErrorBoundary'
 import FocusGroupBanner from '@/components/dashboard/FocusGroupBanner'
 import NudgeBanner from '@/components/dashboard/NudgeBanner'
+import PaymentFailureBanner from '@/components/dashboard/PaymentFailureBanner'
 import { UserProvider } from '@/contexts/UserContext'
 import { Search } from 'lucide-react'
 
@@ -69,6 +70,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
           <NotificationsBell />
         </header>
+
+        {/* Payment failure banner — self-fetches, shown when payment_failed_at is set */}
+        <PaymentFailureBanner />
 
         {/* Focus group expiry banner — shown within 7 days of expiry */}
         {focusGroupExpiresAt && (

@@ -240,7 +240,7 @@ export default function NudgePreviewPanel({ count, onClose }: Props) {
             </button>
           ) : (
             <a
-              href="/dashboard/settings?tab=billing"
+              href="/dashboard/settings/billing"
               className="block w-full text-center py-2.5 bg-rx-orange text-white font-semibold rounded-xl text-sm hover:bg-rx-orange-dark transition-colors font-body"
             >
               Upgrade to Professional — $29/mo

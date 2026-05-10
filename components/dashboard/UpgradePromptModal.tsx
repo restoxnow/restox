@@ -74,7 +74,7 @@ export default function UpgradePromptModal({ featureName, requiredTier, currentT
         {/* CTAs */}
         <div className="px-6 pb-6 flex flex-col gap-2">
           <a
-            href="/#pricing"
+            href="/dashboard/settings/billing"
             className="flex items-center justify-center gap-2 w-full py-2.5 bg-rx-orange hover:bg-rx-orange/90 text-white font-semibold rounded-xl text-sm transition-colors font-heading"
           >
             Upgrade to {label} — {price}/mo

@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Search, ChevronDown, ChevronRight, CheckCircle, X,
   Loader2, AlertTriangle, Link2, Calendar, CheckCircle2, AlertCircle,
-  CreditCard, Info, Shield,
+  CreditCard, Info, Shield, PauseCircle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
@@ -38,6 +38,7 @@ interface ConnectedRetailer {
   connection_type: string
   connection_status: string
   created_at: string
+  is_suspended: boolean
 }
 
 interface StoredPaymentMethod {
@@ -262,7 +263,26 @@ function ConnectedRetailerCard({
       : 'Confirmation required'
 
   return (
-    <div className="relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none overflow-hidden">
+    <div className={`relative bg-white dark:bg-[#16213E] rounded-xl border shadow-sm dark:shadow-none overflow-hidden ${
+      retailer.is_suspended
+        ? 'border-amber-200 dark:border-amber-700/40 opacity-75'
+        : 'border-gray-100 dark:border-white/10'
+    }`}>
+      {/* Suspended banner */}
+      {retailer.is_suspended && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700/30">
+          <PauseCircle size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 font-body flex-1">
+            Suspended — automated orders paused
+          </p>
+          <a
+            href="/dashboard/settings/billing"
+            className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline font-body"
+          >
+            Restore by upgrading →
+          </a>
+        </div>
+      )}
       {/* Main row */}
       <div className="p-4 flex items-center gap-3">
         <ConnectedRetailerLogo name={retailer.name} />
@@ -476,7 +496,7 @@ export default function RetailersPage() {
     if (!user) { setLoadingRetailers(false); return }
     const { data } = await supabase
       .from('retailers')
-      .select('id, name, connection_type, connection_status, created_at')
+      .select('id, name, connection_type, connection_status, created_at, is_suspended')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
     setDbRetailers((data as ConnectedRetailer[]) ?? [])

@@ -12,6 +12,7 @@ import {
   BrainCircuit,
   PieChart,
   Settings,
+  CreditCard,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -32,7 +33,8 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/products',           label: 'Products',           icon: Package },
   { href: '/dashboard/ai-timing',          label: 'AI Reorder Timing',  icon: BrainCircuit, badge: 'CONSUMER' },
   { href: '/dashboard/spend-intelligence', label: 'Spend Intelligence', icon: PieChart,     badge: 'PRO' },
-  { href: '/dashboard/settings',           label: 'Settings',           icon: Settings },
+  { href: '/dashboard/settings/billing',  label: 'Billing & Plan',     icon: CreditCard },
+  { href: '/dashboard/settings',          label: 'Settings',           icon: Settings },
 ]
 
 const PLAN_STYLES: Record<string, string> = {

@@ -132,7 +132,7 @@ function SpendMockDemo() {
       <div className="bg-rx-orange-light dark:bg-rx-orange/10 border border-orange-200 dark:border-rx-orange/20 rounded-2xl p-6 text-center">
         <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">Ready to unlock this for your purchases?</p>
         <a
-          href="/#pricing"
+          href="/dashboard/settings/billing"
           className="inline-block mt-3 px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl text-sm hover:bg-rx-orange-dark transition-colors font-body"
         >
           Upgrade to Professional — $29/mo
@@ -442,12 +442,12 @@ export default function SpendIntelligencePage() {
               AI-powered purchase insights across all your retailers — track spending patterns, find savings, and get automation suggestions.
             </p>
             <a
-              href="/#pricing"
+              href="/dashboard/settings/billing"
               className="inline-block px-8 py-3 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body"
             >
               Upgrade to Professional — $29/mo
             </a>
-            <a href="/#pricing" className="block mt-3 text-xs text-white/40 hover:text-white/70 font-body transition-colors">
+            <a href="/dashboard/settings/billing" className="block mt-3 text-xs text-white/40 hover:text-white/70 font-body transition-colors">
               View all plans →
             </a>
           </div>

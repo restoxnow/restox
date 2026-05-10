@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   CalendarClock, Package, Zap, Mail, MessageSquare, Layers,
-  Pause, Play, Trash2, ChevronDown, AlertTriangle, Eye, X, CreditCard,
+  Pause, Play, Trash2, ChevronDown, AlertTriangle, Eye, X, CreditCard, PauseCircle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
@@ -31,6 +31,7 @@ interface Schedule {
   subscription_confidence: string | null
   subscription_interval_days: number | null
   monitor_only: boolean
+  is_suspended: boolean
 }
 
 interface PaymentLabel {
@@ -452,6 +453,41 @@ function ScheduleCard({
     setShowDelete(false)
   }
 
+  if (schedule.is_suspended) {
+    return (
+      <div className="bg-white dark:bg-[#16213E] rounded-xl border border-amber-200 dark:border-amber-700/40 shadow-sm dark:shadow-none overflow-hidden opacity-75">
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700/30">
+          <PauseCircle size={13} className="text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 font-body flex-1">
+            Suspended — automated orders paused
+          </p>
+          <a
+            href="/dashboard/settings/billing"
+            className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline font-body"
+          >
+            Restore by upgrading →
+          </a>
+        </div>
+        <div className="p-5 flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center shrink-0">
+            <Package size={18} className="text-gray-400 dark:text-gray-500" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-rx-navy dark:text-white font-body truncate">
+              {schedule.product_name || 'Unknown product'}
+            </p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
+              {schedule.retailer || '—'}
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold font-body bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400">
+            Suspended
+          </span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`bg-white dark:bg-[#16213E] rounded-xl border shadow-sm dark:shadow-none p-5 space-y-4 transition-opacity ${
       isMonitorOnly
@@ -665,7 +701,7 @@ export default function SchedulesPage() {
     const [schedulesRes, userRes, paymentRes] = await Promise.all([
       supabase
         .from('purchase_schedules')
-        .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at, monthly_forecast, subscription_detected, subscription_confidence, subscription_interval_days, monitor_only')
+        .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at, monthly_forecast, subscription_detected, subscription_confidence, subscription_interval_days, monitor_only, is_suspended')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false }),
       supabase

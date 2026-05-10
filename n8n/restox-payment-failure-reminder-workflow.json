@@ -1,0 +1,118 @@
+{
+  "name": "Restox — Daily Payment Failure Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "days", "triggerAtHour": 10, "triggerAtMinute": 0 }]
+        }
+      },
+      "id": "trigger",
+      "name": "Daily 10AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Authorization", "value": "Bearer SUPABASE_SERVICE_ROLE_KEY_HERE" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select",            "value": "id,email,plan_tier,previous_plan_tier,payment_failed_at" },
+            { "name": "payment_failed_at", "value": "not.is.null" },
+            { "name": "is_admin",          "value": "eq.false" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-failed-users",
+      "name": "Fetch Users with Failed Payments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-users",
+      "name": "Split Into Users",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.sendgrid.com/v3/mail/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer SENDGRID_API_KEY_HERE" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"personalizations\": [{ \"to\": [{ \"email\": \"{{ $json.email }}\" }] }],\n  \"from\": { \"email\": \"hello@restox.net\", \"name\": \"Restox\" },\n  \"subject\": \"Your Restox payment is still overdue\",\n  \"content\": [{\n    \"type\": \"text/html\",\n    \"value\": \"<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff'><img src='https://restox.net/restox-logo-icon.png' alt='Restox' width='32' style='border-radius:8px;margin-bottom:24px'/><h2 style='color:#1A1A2E;font-size:20px;margin:0 0 12px'>Your Restox payment is still overdue</h2><p style='color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px'>Your {{ $json.previous_plan_tier || 'paid' }} plan features are still on hold. Update your payment method to restore access immediately. If you'd like to permanently downgrade instead, you can do that in your account settings.</p><a href='https://restox.net/dashboard/settings/billing' style='display:inline-block;padding:12px 28px;background:#F47C20;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px;margin-right:12px'>Update Payment Method</a><a href='https://restox.net/dashboard/settings/billing' style='color:#374151;font-size:14px;display:inline-block;margin-top:16px'>Manage my plan</a><hr style='border:none;border-top:1px solid #e5e7eb;margin:32px 0'/><p style='color:#9ca3af;font-size:12px;line-height:1.5;margin:0'>Restox LLC · Nevada, USA</p></div>\"\n  }]\n}",
+        "options": {}
+      },
+      "id": "send-reminder",
+      "name": "Send Reminder Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/users?id=eq.{{ $('Split Into Users').item.json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Authorization", "value": "Bearer SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Content-Type",  "value": "application/json" },
+            { "name": "Prefer",        "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"payment_failure_notified_at\": \"{{ new Date().toISOString() }}\" }",
+        "options": {}
+      },
+      "id": "update-notified-at",
+      "name": "Update payment_failure_notified_at",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 300]
+    }
+  ],
+  "connections": {
+    "Daily 10AM": {
+      "main": [[{ "node": "Fetch Users with Failed Payments", "type": "main", "index": 0 }]]
+    },
+    "Fetch Users with Failed Payments": {
+      "main": [[{ "node": "Split Into Users", "type": "main", "index": 0 }]]
+    },
+    "Split Into Users": {
+      "main": [[{ "node": "Send Reminder Email", "type": "main", "index": 0 }]]
+    },
+    "Send Reminder Email": {
+      "main": [[{ "node": "Update payment_failure_notified_at", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "id": "restox-payment-failure-reminder"
+}
