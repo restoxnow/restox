@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Lock, CreditCard, Mail, Camera, PieChart, RefreshCw, Plus, Building2, ChevronDown, X, CheckCircle } from 'lucide-react'
-import { useUser, useUserTier } from '@/contexts/UserContext'
+import { useUserTier } from '@/contexts/UserContext'
 import UpgradePromptModal from '@/components/dashboard/UpgradePromptModal'
 import { usePlaidLink } from 'react-plaid-link'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
@@ -23,7 +23,7 @@ export interface RecurringItem {
 }
 
 // ---------------------------------------------------------------------------
-// Paywall sample rows
+// Paywall sample rows (decorative blurred preview)
 // ---------------------------------------------------------------------------
 const SAMPLE_ROWS = [
   { id: 1, product: 'Organic Coffee Beans', source: 'email',   spend: '$18.99/mo avg'  },
@@ -39,6 +39,107 @@ const FREQ_LABEL: Record<string, string> = {
   monthly: 'Monthly',
   quarterly: 'Quarterly',
   occasional: 'Occasional',
+}
+
+// ---------------------------------------------------------------------------
+// Mock data for post-ad demo (NEVER uses real user data)
+// ---------------------------------------------------------------------------
+const MOCK_SPEND_CATEGORIES = [
+  { label: 'Household Supplies', amount: 184, pct: 38, color: 'bg-blue-500' },
+  { label: 'Groceries',          amount: 142, pct: 29, color: 'bg-green-500' },
+  { label: 'Personal Care',      amount: 97,  pct: 20, color: 'bg-purple-500' },
+  { label: 'Pet Supplies',       amount: 62,  pct: 13, color: 'bg-amber-500' },
+]
+
+const MOCK_RETAILERS = [
+  { name: 'Amazon',  amount: 247, pct: 51 },
+  { name: 'Costco',  amount: 145, pct: 30 },
+  { name: 'Walmart', amount: 93,  pct: 19 },
+]
+
+function SpendMockDemo() {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2.5 py-0.5 rounded-full font-body">
+          Example Preview
+        </span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 font-body">Mock data only — not your purchases</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Spend by category */}
+        <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest font-body mb-4">Spend by Category</p>
+          <div className="space-y-3">
+            {MOCK_SPEND_CATEGORIES.map(cat => (
+              <div key={cat.label}>
+                <div className="flex items-center justify-between text-xs font-body mb-1.5">
+                  <span className="text-rx-navy dark:text-white font-medium">{cat.label}</span>
+                  <span className="text-gray-400 dark:text-gray-500">${cat.amount}/mo</span>
+                </div>
+                <div className="w-full bg-gray-100 dark:bg-white/10 rounded-full h-2">
+                  <div className={`${cat.color} h-2 rounded-full transition-all`} style={{ width: `${cat.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Retailer breakdown */}
+        <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm p-5">
+          <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest font-body mb-4">By Retailer</p>
+          <div className="space-y-3">
+            {MOCK_RETAILERS.map(r => (
+              <div key={r.name}>
+                <div className="flex items-center justify-between text-xs font-body mb-1.5">
+                  <span className="text-rx-navy dark:text-white font-medium">{r.name}</span>
+                  <span className="text-gray-400 dark:text-gray-500">${r.amount}/mo · {r.pct}%</span>
+                </div>
+                <div className="w-full bg-gray-100 dark:bg-white/10 rounded-full h-2">
+                  <div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${r.pct}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/10">
+            <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body uppercase tracking-wide">Total / month</p>
+            <p className="text-lg font-bold font-heading text-rx-navy dark:text-white mt-0.5">$485</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Automation suggestion */}
+      <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm p-5">
+        <p className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest font-body mb-4">Automation Suggestion</p>
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+            <CreditCard size={18} className="text-green-600 dark:text-green-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">Tide Pods 96ct</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
+              Amazon · purchased every 4–5 weeks · save ~$12/yr by automating
+            </p>
+          </div>
+          <span className="opacity-40 pointer-events-none select-none inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-rx-orange-light text-rx-orange font-body">
+            <Plus size={12} /> Add to Restox
+          </span>
+        </div>
+      </div>
+
+      {/* Post-demo upgrade CTA */}
+      <div className="bg-rx-orange-light dark:bg-rx-orange/10 border border-orange-200 dark:border-rx-orange/20 rounded-2xl p-6 text-center">
+        <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">Ready to unlock this for your purchases?</p>
+        <a
+          href="/#pricing"
+          className="inline-block mt-3 px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl text-sm hover:bg-rx-orange-dark transition-colors font-body"
+        >
+          Upgrade to Professional — $29/mo
+        </a>
+      </div>
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -217,10 +318,11 @@ function IgnoredRow({ merchant, onRestore }: { merchant: string; onRestore: (m: 
 // Main page
 // ---------------------------------------------------------------------------
 export default function SpendIntelligencePage() {
-  const { hasProAccess } = useUser()
-  const { isBusinessOnly, planTier } = useUserTier()
+  const { isProfessionalOrAbove, isBusinessOnly, planTier } = useUserTier()
+  const hasProAccess = isProfessionalOrAbove
   const supabase = createSupabaseBrowserClient()
   const [showAnalyticsUpgrade, setShowAnalyticsUpgrade] = useState(false)
+  const [showDemo, setShowDemo] = useState(false)
 
   const [recurring, setRecurring] = useState<RecurringItem[]>([])
   const [connected, setConnected] = useState(false)
@@ -330,50 +432,67 @@ export default function SpendIntelligencePage() {
 
       {!hasProAccess ? (
         <>
-          {/* Blurred paywall preview */}
-          <div className="relative rounded-2xl overflow-hidden">
-            <div className="blur-sm pointer-events-none select-none bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm divide-y divide-gray-50 dark:divide-white/5">
-              {SAMPLE_ROWS.map(row => {
-                const Icon = SOURCE_ICON[row.source]
-                return (
-                  <div key={row.id} className="flex items-center gap-4 px-5 py-4">
-                    <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <Icon size={18} className="text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-rx-navy dark:text-white font-body">{row.product}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                        Detected via {SOURCE_LABEL[row.source]} · {row.spend}
-                      </p>
-                    </div>
-                  </div>
-                )
-              })}
+          {/* Prominent upgrade CTA — visible immediately on page load */}
+          <div className="bg-rx-navy dark:bg-[#0D1226] rounded-2xl p-8 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-rx-orange/20 flex items-center justify-center mx-auto mb-4">
+              <PieChart size={26} className="text-rx-orange" />
             </div>
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-rx-navy/80 backdrop-blur-[2px] rounded-2xl">
-              <div className="w-14 h-14 rounded-2xl bg-rx-orange-light dark:bg-rx-orange/10 flex items-center justify-center mb-4">
-                <Lock size={24} className="text-rx-orange" />
-              </div>
-              <h3 className="font-heading font-bold text-rx-navy dark:text-white text-lg mb-1">Professional Feature</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-5">
-                Spend Intelligence scans your purchase history via Plaid, email, or receipt OCR to surface things you buy repeatedly but haven&apos;t automated yet.
-              </p>
-              <AdSlot
-                slot="spend-intelligence-video"
-                format="video"
-                className="mb-3"
-                videoLabel="Watch a short ad to preview this feature"
-              />
-              <a
-                href="/#pricing"
-                className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm"
+            <h2 className="font-heading font-bold text-white text-2xl mb-3">Unlock Spend Intelligence</h2>
+            <p className="text-white/70 font-body text-sm max-w-sm mx-auto mb-6">
+              AI-powered purchase insights across all your retailers — track spending patterns, find savings, and get automation suggestions.
+            </p>
+            <a
+              href="/#pricing"
+              className="inline-block px-8 py-3 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body"
+            >
+              Upgrade to Professional — $29/mo
+            </a>
+            <a href="/#pricing" className="block mt-3 text-xs text-white/40 hover:text-white/70 font-body transition-colors">
+              View all plans →
+            </a>
+          </div>
+
+          {/* Ad placeholder */}
+          <div className="flex justify-center">
+            <AdSlot
+              slot="spend-intelligence-video"
+              format="video"
+              videoLabel="Watch a short ad to preview this feature"
+            />
+          </div>
+
+          {/* Example preview toggle — post-ad demo with mock data only */}
+          {!showDemo ? (
+            <div className="text-center">
+              <button
+                onClick={() => setShowDemo(true)}
+                className="text-sm font-semibold text-rx-orange hover:text-rx-orange-dark transition-colors font-body"
               >
-                Upgrade to Professional — $29/mo
-              </a>
-              <a href="/#pricing" className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 font-body transition-colors">
-                View all plans
-              </a>
+                See an example preview →
+              </button>
             </div>
+          ) : (
+            <SpendMockDemo />
+          )}
+
+          {/* Blurred preview — decorative, reinforces what user is missing */}
+          <div className="blur-sm opacity-50 pointer-events-none select-none bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm divide-y divide-gray-50 dark:divide-white/5">
+            {SAMPLE_ROWS.map(row => {
+              const Icon = SOURCE_ICON[row.source]
+              return (
+                <div key={row.id} className="flex items-center gap-4 px-5 py-4">
+                  <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                    <Icon size={18} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-rx-navy dark:text-white font-body">{row.product}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
+                      Detected via {SOURCE_LABEL[row.source]} · {row.spend}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
           {/* Source teasers */}

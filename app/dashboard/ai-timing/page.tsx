@@ -363,13 +363,110 @@ function ProductTimingCard({ item, onRecalculate, onOverrideSaved }: {
 }
 
 // ---------------------------------------------------------------------------
-// Sample rows shown in paywall preview
+// Sample rows shown in paywall blurred preview (decorative)
 // ---------------------------------------------------------------------------
 const SAMPLE_ROWS = [
   { id: 1, product: 'Tide Pods 96ct',  predictedDate: 'May 10', confidence: 'high' as const, daysLeft: 3 },
   { id: 2, product: 'Dawn Dish Soap',  predictedDate: 'May 22', confidence: 'medium' as const, daysLeft: 15 },
   { id: 3, product: 'Vitamin D3',      predictedDate: 'Jun 1',  confidence: 'low' as const, daysLeft: 25 },
 ]
+
+// ---------------------------------------------------------------------------
+// Mock data for post-ad demo (NEVER uses real user data)
+// ---------------------------------------------------------------------------
+const MOCK_TIMING_ITEMS = [
+  { name: 'Laundry Detergent', retailer: 'Amazon',  daysLeft: 4,  confidence: 'high'   as const, seasonal: false, freq: 'monthly',   reason: 'Usage rate consistent with household of 4 over 6 months.' },
+  { name: 'Paper Towels',      retailer: 'Costco',  daysLeft: 12, confidence: 'medium' as const, seasonal: false, freq: 'monthly',   reason: 'Slightly higher usage than typical last month.' },
+  { name: 'Coffee Pods',       retailer: 'Amazon',  daysLeft: 21, confidence: 'high'   as const, seasonal: false, freq: 'bi-weekly', reason: 'Consistent 14-day cycle detected across 8 orders.' },
+  { name: 'Vitamin D3',        retailer: 'Walmart', daysLeft: 45, confidence: 'low'    as const, seasonal: true,  freq: 'quarterly', reason: 'Irregular purchase history — manual override recommended.' },
+]
+
+function AITimingMockDemo() {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <span className="text-xs font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2.5 py-0.5 rounded-full font-body">
+          Example Preview
+        </span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 font-body">Mock data only — not your products</span>
+      </div>
+
+      <div className="space-y-4">
+        {MOCK_TIMING_ITEMS.map(item => {
+          const isUrgent = item.daysLeft <= 7
+          return (
+            <div
+              key={item.name}
+              className={`bg-white dark:bg-[#16213E] rounded-xl border shadow-sm p-5 space-y-4 ${
+                isUrgent ? 'border-red-200 dark:border-red-800/40' : 'border-gray-100 dark:border-white/10'
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center shrink-0">
+                  <BrainCircuit size={18} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">{item.name}</p>
+                  <span className="text-xs text-gray-400 dark:text-gray-500 font-body">{item.retailer}</span>
+                </div>
+                <ConfidenceBadge level={item.confidence} />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-white/5 text-center">
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body uppercase tracking-wide">Frequency</p>
+                  <p className="text-sm font-bold font-heading text-rx-navy dark:text-white mt-0.5">
+                    {FREQ_LABEL[item.freq] ?? item.freq}
+                  </p>
+                </div>
+                <div className={`px-3 py-2.5 rounded-xl text-center ${isUrgent ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-white/5'}`}>
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body uppercase tracking-wide">Run-out</p>
+                  <p className={`text-sm font-bold font-heading mt-0.5 ${isUrgent ? 'text-red-600 dark:text-red-400' : 'text-rx-navy dark:text-white'}`}>
+                    {item.daysLeft}d
+                  </p>
+                </div>
+                <div className="px-3 py-2.5 rounded-xl bg-gray-50 dark:bg-white/5 text-center">
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body uppercase tracking-wide">Target date</p>
+                  <p className="text-sm font-bold font-heading text-rx-navy dark:text-white mt-0.5">
+                    {predictedDateLabel(item.daysLeft)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                {item.seasonal && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/30 font-body">
+                    <Sun size={9} /> Seasonal adjustments active
+                  </span>
+                )}
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">{item.reason}</p>
+              </div>
+
+              <div className="flex items-center gap-2 opacity-40 pointer-events-none select-none">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 font-body">
+                  <RefreshCw size={11} /> Recalculate
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 font-body">
+                  <Sliders size={11} /> Override
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="bg-rx-orange-light dark:bg-rx-orange/10 border border-orange-200 dark:border-rx-orange/20 rounded-2xl p-6 text-center">
+        <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">Ready to do this for your products?</p>
+        <a
+          href="/#pricing"
+          className="inline-block mt-3 px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl text-sm hover:bg-rx-orange-dark transition-colors font-body"
+        >
+          Upgrade to Consumer — $9.99/mo
+        </a>
+      </div>
+    </div>
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Main page
@@ -379,6 +476,7 @@ export default function AITimingPage() {
   const hasProAccess = isConsumerOrAbove  // AI Timing is Consumer+
   const supabase = createSupabaseBrowserClient()
   const [showSeasonalUpgrade, setShowSeasonalUpgrade] = useState(false)
+  const [showDemo, setShowDemo] = useState(false)
 
   const [items, setItems] = useState<ProductWithTiming[]>([])
   const [loading, setLoading] = useState(true)
@@ -489,50 +587,68 @@ export default function AITimingPage() {
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-body">Predicted run-out dates powered by AI</p>
         </div>
 
-        <div className="relative rounded-2xl overflow-hidden">
-          <div className="blur-sm pointer-events-none select-none bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm divide-y divide-gray-50 dark:divide-white/5">
-            {SAMPLE_ROWS.map(p => (
-              <div key={p.id} className="flex items-center gap-4 px-5 py-4">
-                <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                  <BrainCircuit size={18} className="text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-rx-navy dark:text-white font-body">{p.product}</p>
-                  <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                    Predicted run-out: {p.predictedDate} · {p.daysLeft} days left
-                  </p>
-                </div>
-                <ConfidenceBadge level={p.confidence} />
-              </div>
-            ))}
+        {/* Prominent upgrade CTA — visible immediately on page load */}
+        <div className="bg-rx-navy dark:bg-[#0D1226] rounded-2xl p-8 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-rx-orange/20 flex items-center justify-center mx-auto mb-4">
+            <BrainCircuit size={26} className="text-rx-orange" />
           </div>
-
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-rx-navy/80 backdrop-blur-[2px] rounded-2xl">
-            <div className="w-14 h-14 rounded-2xl bg-rx-orange-light dark:bg-rx-orange/10 flex items-center justify-center mb-4">
-              <Lock size={24} className="text-rx-orange" />
-            </div>
-            <h3 className="font-heading font-bold text-rx-navy dark:text-white text-lg mb-1">Consumer Feature</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 font-body text-center max-w-xs mb-5">
-              AI Reorder Timing predicts when you&apos;ll run out before you do — using consumption patterns, household size, and seasonal trends.
-            </p>
-            <AdSlot
-              slot="ai-timing-video"
-              format="video"
-              className="mb-3"
-              videoLabel="Watch a short ad to preview this feature"
-            />
-            <a
-              href="/#pricing"
-              className="px-6 py-2.5 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body text-sm"
-            >
-              Upgrade to Consumer — $9.99/mo
-            </a>
-            <a href="/#pricing" className="mt-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 font-body transition-colors">
-              View all plans
-            </a>
-          </div>
+          <h2 className="font-heading font-bold text-white text-2xl mb-3">Unlock AI Reorder Timing</h2>
+          <p className="text-white/70 font-body text-sm max-w-sm mx-auto mb-6">
+            Automatically predicts when you&apos;ll run out of each product and schedules reorders at the perfect time.
+          </p>
+          <a
+            href="/#pricing"
+            className="inline-block px-8 py-3 bg-rx-orange text-white font-semibold rounded-xl hover:bg-rx-orange-dark transition-colors font-body"
+          >
+            Upgrade to Consumer — $9.99/mo
+          </a>
+          <a href="/#pricing" className="block mt-3 text-xs text-white/40 hover:text-white/70 font-body transition-colors">
+            View all plans →
+          </a>
         </div>
 
+        {/* Ad placeholder */}
+        <div className="flex justify-center">
+          <AdSlot
+            slot="ai-timing-video"
+            format="video"
+            videoLabel="Watch a short ad to preview this feature"
+          />
+        </div>
+
+        {/* Example preview toggle — post-ad demo with mock data only */}
+        {!showDemo ? (
+          <div className="text-center">
+            <button
+              onClick={() => setShowDemo(true)}
+              className="text-sm font-semibold text-rx-orange hover:text-rx-orange-dark transition-colors font-body"
+            >
+              See an example preview →
+            </button>
+          </div>
+        ) : (
+          <AITimingMockDemo />
+        )}
+
+        {/* Blurred preview — decorative, reinforces what user is missing */}
+        <div className="blur-sm opacity-50 pointer-events-none select-none bg-white dark:bg-[#16213E] rounded-2xl border border-gray-100 dark:border-white/10 shadow-sm divide-y divide-gray-50 dark:divide-white/5">
+          {SAMPLE_ROWS.map(p => (
+            <div key={p.id} className="flex items-center gap-4 px-5 py-4">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                <BrainCircuit size={18} className="text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-rx-navy dark:text-white font-body">{p.product}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
+                  Predicted run-out: {p.predictedDate} · {p.daysLeft} days left
+                </p>
+              </div>
+              <ConfidenceBadge level={p.confidence} />
+            </div>
+          ))}
+        </div>
+
+        {/* Feature teasers */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { icon: BrainCircuit, title: 'Consumption patterns', desc: 'Learns how fast your household uses each product' },
