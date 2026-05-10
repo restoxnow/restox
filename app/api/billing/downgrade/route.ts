@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { stripe } from '@/lib/stripe'
+import { stripe, getPriceId } from '@/lib/stripe'
 import { TIER_CAPS } from '@/lib/tier-caps'
 import type { PlanTier } from '@/lib/tier-caps'
 
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     try {
       const subs = await stripe.subscriptions.list({ customer: customerId, status: 'active', limit: 1 })
       if (subs.data.length > 0) {
-        const priceId = process.env[`STRIPE_PRICE_${targetTier.toUpperCase()}`]
+        const priceId = getPriceId(targetTier, 'monthly')
         if (priceId) {
           await stripe.subscriptions.update(subs.data[0].id, {
             items: [{ id: subs.data[0].items.data[0].id, price: priceId }],

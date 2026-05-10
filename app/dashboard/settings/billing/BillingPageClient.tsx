@@ -6,9 +6,11 @@ import {
   CreditCard, CheckCircle, AlertCircle, ArrowRight,
   Loader2, ChevronDown, ExternalLink,
 } from 'lucide-react'
-import { TIER_CAPS, TIER_PRICES, TIER_LABELS } from '@/lib/tier-caps'
+import { TIER_CAPS, TIER_LABELS } from '@/lib/tier-caps'
 import type { PlanTier } from '@/lib/tier-caps'
 import DowngradeWarningModal from '@/components/dashboard/DowngradeWarningModal'
+
+type BillingPeriod = 'monthly' | 'annual'
 
 const TIERS: PlanTier[] = ['free', 'consumer', 'professional', 'business']
 
@@ -19,11 +21,18 @@ const TIER_FEATURES: Record<PlanTier, string[]> = {
   business:     ['Unlimited retailers & schedules', 'Seasonal Forecasting', 'Advanced Analytics', 'Multi-user / Team', 'Priority Support'],
 }
 
-const TIER_CYCLE: Record<PlanTier, string> = {
-  free:         'Free forever',
-  consumer:     'Billed monthly',
-  professional: 'Billed monthly',
-  business:     'Billed monthly',
+const MONTHLY_PRICES: Record<PlanTier, string> = {
+  free:         '$0',
+  consumer:     '$9.99',
+  professional: '$29',
+  business:     '$79',
+}
+
+const ANNUAL_PRICES: Record<PlanTier, { yearly: string; perMonth: string }> = {
+  free:         { yearly: '$0',    perMonth: '$0' },
+  consumer:     { yearly: '$99',   perMonth: '$8.25' },
+  professional: { yearly: '$290',  perMonth: '$24.17' },
+  business:     { yearly: '$790',  perMonth: '$65.83' },
 }
 
 interface Props {
@@ -79,13 +88,15 @@ export default function BillingPageClient({
   const tier   = planTier as PlanTier
   const caps   = TIER_CAPS[tier] ?? TIER_CAPS.free
 
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null)
-  const [portalLoading, setPortalLoading]     = useState(false)
-  const [downgradeTarget, setDowngradeTarget] = useState<PlanTier | null>(null)
+  const [billingPeriod, setBillingPeriod]       = useState<BillingPeriod>('monthly')
+  const [checkoutLoading, setCheckoutLoading]   = useState<string | null>(null)
+  const [portalLoading, setPortalLoading]       = useState(false)
+  const [downgradeTarget, setDowngradeTarget]   = useState<PlanTier | null>(null)
   const [downgradeSuccess, setDowngradeSuccess] = useState(false)
   const [showDowngradeMenu, setShowDowngradeMenu] = useState(false)
 
   const tierIndex = TIERS.indexOf(tier)
+  const isAnnual  = billingPeriod === 'annual'
 
   const handleUpgrade = async (targetTier: PlanTier) => {
     setCheckoutLoading(targetTier)
@@ -93,7 +104,7 @@ export default function BillingPageClient({
       const res = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier: targetTier }),
+        body: JSON.stringify({ tier: targetTier, billingPeriod }),
       })
       const { url, error } = await res.json()
       if (url) window.location.href = url
@@ -123,6 +134,22 @@ export default function BillingPageClient({
   const failedDate = paymentFailedAt
     ? new Date(paymentFailedAt).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
     : null
+
+  function priceDisplay(t: PlanTier) {
+    if (t === 'free') return { main: '$0', sub: 'Free forever' }
+    if (isAnnual) {
+      const a = ANNUAL_PRICES[t]
+      return { main: a.perMonth, sub: `${a.yearly}/yr · billed annually` }
+    }
+    return { main: MONTHLY_PRICES[t], sub: 'per month · billed monthly' }
+  }
+
+  function upgradeCTALabel(t: PlanTier) {
+    if (isAnnual) {
+      return `Upgrade to ${TIER_LABELS[t]} — ${ANNUAL_PRICES[t].yearly}/yr`
+    }
+    return `Upgrade to ${TIER_LABELS[t]} — ${MONTHLY_PRICES[t]}/mo`
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -188,7 +215,10 @@ export default function BillingPageClient({
               {TIER_LABELS[tier] ?? tier}
             </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 font-body mt-0.5">
-              {TIER_PRICES[tier]}/mo · {TIER_CYCLE[tier]}
+              {tier === 'free'
+                ? 'Free forever'
+                : `${MONTHLY_PRICES[tier]}/mo`
+              }
             </p>
           </div>
           <span className="px-3 py-1 rounded-full bg-rx-orange/10 text-rx-orange text-xs font-bold font-body">
@@ -205,14 +235,51 @@ export default function BillingPageClient({
       </section>
 
       {/* Plan cards */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-heading font-semibold text-rx-navy dark:text-white">All plans</h2>
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-heading font-semibold text-rx-navy dark:text-white">All plans</h2>
+
+          {/* Monthly / Annual toggle */}
+          <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-white/10 rounded-xl">
+            <button
+              onClick={() => setBillingPeriod('monthly')}
+              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors font-body ${
+                !isAnnual
+                  ? 'bg-white dark:bg-[#16213E] text-rx-navy dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingPeriod('annual')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors font-body ${
+                isAnnual
+                  ? 'bg-white dark:bg-[#16213E] text-rx-navy dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white'
+              }`}
+            >
+              Annual
+              <span className="px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 text-[10px] font-bold leading-none">
+                Save 17%
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {isAnnual && (
+          <p className="text-xs text-green-700 dark:text-green-400 font-body font-semibold -mt-1">
+            2 months free when you pay annually
+          </p>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {TIERS.map((t, i) => {
-            const isCurrent  = t === tier
-            const isUpgrade  = i > tierIndex
+            const isCurrent   = t === tier
+            const isUpgrade   = i > tierIndex
             const isDowngrade = i < tierIndex
-            const caps_t     = TIER_CAPS[t]
+            const caps_t      = TIER_CAPS[t]
+            const price       = priceDisplay(t)
 
             return (
               <div
@@ -233,9 +300,21 @@ export default function BillingPageClient({
                   <p className="font-heading font-bold text-rx-navy dark:text-white text-base">
                     {TIER_LABELS[t]}
                   </p>
-                  <p className="text-2xl font-heading font-bold text-rx-navy dark:text-white mt-1">
-                    {TIER_PRICES[t]}
-                    <span className="text-sm font-body text-gray-400 font-normal">/mo</span>
+                  <div className="flex items-baseline gap-1 mt-1">
+                    <span className="text-2xl font-heading font-bold text-rx-navy dark:text-white">
+                      {price.main}
+                    </span>
+                    {t !== 'free' && (
+                      <span className="text-sm font-body text-gray-400 font-normal">/mo</span>
+                    )}
+                    {isAnnual && t !== 'free' && (
+                      <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 font-body">
+                        2 months free
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
+                    {price.sub}
                   </p>
                   <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">
                     {caps_t.retailers === Infinity
@@ -262,7 +341,7 @@ export default function BillingPageClient({
                   >
                     {checkoutLoading === t
                       ? <><Loader2 size={13} className="animate-spin" /> Processing…</>
-                      : <>Upgrade to {TIER_LABELS[t]} — {TIER_PRICES[t]}/mo <ArrowRight size={13} /></>
+                      : <>{upgradeCTALabel(t)} <ArrowRight size={13} /></>
                     }
                   </button>
                 )}
@@ -279,7 +358,7 @@ export default function BillingPageClient({
                   </p>
                 )}
 
-                {isDowngrade && isCurrent === false && (
+                {isDowngrade && !isCurrent && (
                   <p className="text-xs text-center text-gray-400 dark:text-gray-500 font-body">Lower tier</p>
                 )}
               </div>
@@ -339,7 +418,7 @@ export default function BillingPageClient({
                     className="w-full flex items-center justify-between px-4 py-3 text-sm font-body text-rx-navy dark:text-white hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-b border-gray-100 dark:border-white/5 last:border-0"
                   >
                     <span>{TIER_LABELS[t]}</span>
-                    <span className="text-gray-400 dark:text-gray-500 text-xs">{TIER_PRICES[t]}/mo</span>
+                    <span className="text-gray-400 dark:text-gray-500 text-xs">{MONTHLY_PRICES[t]}/mo</span>
                   </button>
                 ))}
               </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { stripe, STRIPE_PRICES } from '@/lib/stripe'
+import { stripe, getPriceId } from '@/lib/stripe'
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://restox.net'
 
@@ -9,8 +9,9 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { tier } = await request.json() as { tier: string }
-  const priceId = STRIPE_PRICES[tier]
+  const { tier, billingPeriod = 'monthly' } = await request.json() as { tier: string; billingPeriod?: 'monthly' | 'annual' }
+
+  const priceId = getPriceId(tier, billingPeriod)
   if (!priceId) return NextResponse.json({ error: 'Invalid tier or price not configured' }, { status: 400 })
 
   const { data: profile } = await supabase
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     client_reference_id: user.id,
     success_url: `${BASE_URL}/dashboard/settings/billing?upgraded=true`,
     cancel_url:  `${BASE_URL}/dashboard/settings/billing`,
-    metadata: { supabase_user_id: user.id, tier },
+    metadata: { supabase_user_id: user.id, tier, billingPeriod },
   })
 
   return NextResponse.json({ url: session.url })

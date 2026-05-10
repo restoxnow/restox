@@ -20,7 +20,14 @@ export const stripe = {
 }
 
 export const STRIPE_PRICES: Record<string, string | undefined> = {
-  consumer:     process.env.STRIPE_PRICE_CONSUMER,
-  professional: process.env.STRIPE_PRICE_PROFESSIONAL,
-  business:     process.env.STRIPE_PRICE_BUSINESS,
+  consumer_monthly:     process.env.STRIPE_PRICE_CONSUMER_MONTHLY,
+  consumer_annual:      process.env.STRIPE_PRICE_CONSUMER_ANNUAL,
+  professional_monthly: process.env.STRIPE_PRICE_PROFESSIONAL_MONTHLY,
+  professional_annual:  process.env.STRIPE_PRICE_PROFESSIONAL_ANNUAL,
+  business_monthly:     process.env.STRIPE_PRICE_BUSINESS_MONTHLY,
+  business_annual:      process.env.STRIPE_PRICE_BUSINESS_ANNUAL,
+}
+
+export function getPriceId(tier: string, period: 'monthly' | 'annual'): string | undefined {
+  return STRIPE_PRICES[`${tier}_${period}`]
 }
