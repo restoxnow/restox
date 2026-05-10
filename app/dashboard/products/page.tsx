@@ -218,17 +218,22 @@ function AddScheduleModal({ product, onClose, onCreated }: {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error('Not authenticated')
 
-      const { error: err } = await supabase.from('purchase_schedules').insert({
+      const payload = {
         product_id: product.id,
         user_id: user.id,
+        product_name: product.name,
+        retailer: product.retailers?.name ?? null,
+        product_url: product.product_url ?? null,
         frequency_days: finalFreqDays,
         status: 'active',
         ai_managed: false,
         notification_timing: timing,
         confirmation_required: false,
         notification_channel: 'email',
-      })
-      if (err) throw err
+      }
+      console.log('[AddSchedule] inserting:', payload)
+      const { error: err } = await supabase.from('purchase_schedules').insert(payload)
+      if (err) { console.error('[AddSchedule] error:', err); throw err }
 
       // Seed initial price data in background (fire and forget)
       fetch('/api/price-compare', {
