@@ -73,7 +73,7 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
 
   return (
     <aside
-      className={`relative flex flex-col h-screen bg-rx-navy text-white transition-all duration-300 ease-in-out shrink-0 z-10
+      className={`relative flex flex-col h-screen bg-rx-navy text-white transition-all duration-300 ease-in-out shrink-0
         ${collapsed ? 'w-[72px]' : 'w-60'}`}
     >
       {/* Logo */}
