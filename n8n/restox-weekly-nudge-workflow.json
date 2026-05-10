@@ -1,0 +1,136 @@
+{
+  "name": "Restox — Weekly Upgrade Nudge Email",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "weeks", "weekday": 1, "triggerAtHour": 9, "triggerAtMinute": 0 }]
+        }
+      },
+      "id": "trigger",
+      "name": "Every Monday 9AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [260, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select",                    "value": "id,email,plan_tier,nudge_email_unsubscribed" },
+            { "name": "plan_tier",                 "value": "in.(free,consumer)" },
+            { "name": "is_admin",                  "value": "eq.false" },
+            { "name": "nudge_email_unsubscribed",  "value": "eq.false" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-users",
+      "name": "Fetch Eligible Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "split-users",
+      "name": "Split Into Users",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/purchase_schedules",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "YOUR_SUPABASE_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SUPABASE_SERVICE_ROLE_KEY" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select",                "value": "id" },
+            { "name": "user_id",               "value": "={{ $json.id }}" },
+            { "name": "subscription_detected", "value": "eq.true" },
+            { "name": "status",                "value": "eq.active" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fetch-detected",
+      "name": "Fetch Detected Schedules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const detected = $input.all();\nconst count = detected.length;\nif (count === 0) return [];\n\n// A/B subject line rotation by ISO week number\nconst weekNum = Math.floor(Date.now() / (7 * 24 * 3600 * 1000));\nconst subject = weekNum % 2 === 0\n  ? 'Restox found products you reorder regularly'\n  : \"You're reordering these — Restox can automate them\";\n\n// Generate unsubscribe token: base64url(userId) + '.' + hmac(userId, secret).slice(0,32)\nconst crypto = require('crypto');\nconst userId = $('Split Into Users').item.json.id;\nconst email  = $('Split Into Users').item.json.email;\nconst secret = process.env.SUPABASE_SERVICE_ROLE_KEY || 'YOUR_SUPABASE_SERVICE_ROLE_KEY';\nconst payload = Buffer.from(userId).toString('base64url');\nconst sig     = crypto.createHmac('sha256', secret).update(userId).digest('hex').slice(0, 32);\nconst token   = `${payload}.${sig}`;\nconst unsubUrl = `https://restox.net/api/nudge/unsubscribe?token=${encodeURIComponent(token)}`;\n\nreturn [{ json: { userId, email, count, subject, unsubUrl } }];"
+      },
+      "id": "build-email-data",
+      "name": "Build Email Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.sendgrid.com/v3/mail/send",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer YOUR_SENDGRID_API_KEY" },
+            { "name": "Content-Type",  "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"personalizations\": [{ \"to\": [{ \"email\": \"{{ $json.email }}\" }] }],\n  \"from\": { \"email\": \"hello@restox.net\", \"name\": \"Restox\" },\n  \"subject\": \"{{ $json.subject }}\",\n  \"content\": [{\n    \"type\": \"text/html\",\n    \"value\": \"<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;background:#fff'><img src='https://restox.net/restox-logo-icon.png' alt='Restox' width='32' style='border-radius:8px;margin-bottom:24px'/><h2 style='color:#1A1A2E;font-size:20px;margin:0 0 12px'>{{ $json.subject }}</h2><p style='color:#374151;font-size:15px;line-height:1.6;margin:0 0 16px'>Restox detected <strong>{{ $json.count }} product{{ $json.count !== 1 ? 's' : '' }}</strong> in your connected retailers that you reorder regularly.</p><p style='color:#374151;font-size:15px;line-height:1.6;margin:0 0 24px'>Upgrade to Professional to view them and set up automated schedules in one click.</p><a href='https://restox.net/dashboard/settings?tab=billing' style='display:inline-block;padding:12px 28px;background:#F47C20;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px'>See My Products</a><hr style='border:none;border-top:1px solid #e5e7eb;margin:32px 0'/><p style='color:#9ca3af;font-size:12px;line-height:1.5;margin:0'>You received this because you have a Restox account. To stop receiving these emails, <a href='{{ $json.unsubUrl }}' style='color:#9ca3af'>unsubscribe here</a>.<br/>Restox LLC · Nevada, USA</p></div>\"\n  }]\n}",
+        "options": {}
+      },
+      "id": "send-email",
+      "name": "Send Nudge Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1360, 300]
+    }
+  ],
+  "connections": {
+    "Every Monday 9AM": {
+      "main": [[{ "node": "Fetch Eligible Users", "type": "main", "index": 0 }]]
+    },
+    "Fetch Eligible Users": {
+      "main": [[{ "node": "Split Into Users", "type": "main", "index": 0 }]]
+    },
+    "Split Into Users": {
+      "main": [[{ "node": "Fetch Detected Schedules", "type": "main", "index": 0 }]]
+    },
+    "Fetch Detected Schedules": {
+      "main": [[{ "node": "Build Email Data", "type": "main", "index": 0 }]]
+    },
+    "Build Email Data": {
+      "main": [[{ "node": "Send Nudge Email", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "id": "restox-weekly-nudge"
+}

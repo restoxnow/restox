@@ -7,6 +7,7 @@ import FeedbackButton from '@/components/dashboard/FeedbackButton'
 import ReportIssueLink from '@/components/dashboard/ReportIssueLink'
 import DashboardErrorBoundary from '@/components/dashboard/DashboardErrorBoundary'
 import FocusGroupBanner from '@/components/dashboard/FocusGroupBanner'
+import NudgeBanner from '@/components/dashboard/NudgeBanner'
 import { UserProvider } from '@/contexts/UserContext'
 import { Search } from 'lucide-react'
 
@@ -73,6 +74,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {focusGroupExpiresAt && (
           <FocusGroupBanner expiresAt={focusGroupExpiresAt} />
         )}
+
+        {/* Weekly nudge banner — Free and Consumer users only, self-fetches */}
+        <NudgeBanner />
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-6">
