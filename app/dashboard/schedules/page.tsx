@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   CalendarClock, Package, Zap, Mail, MessageSquare, Layers,
-  Pause, Play, Trash2, ChevronDown, AlertTriangle,
+  Pause, Play, Trash2, ChevronDown, AlertTriangle, Eye, X,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
@@ -27,6 +27,10 @@ interface Schedule {
   product_name: string
   retailer: string
   monthly_forecast: ForecastMonth[] | null
+  subscription_detected: boolean
+  subscription_confidence: string | null
+  subscription_interval_days: number | null
+  monitor_only: boolean
 }
 
 type FilterTab = 'all' | 'active' | 'paused'
@@ -36,6 +40,13 @@ function freqToDays(num: number, unit: FreqUnit): number {
   if (unit === 'weeks')  return num * 7
   if (unit === 'months') return num * 30
   return num
+}
+
+function retailerKey(name: string): 'amazon' | 'chewy' | null {
+  const l = name.toLowerCase()
+  if (l.includes('amazon')) return 'amazon'
+  if (l.includes('chewy'))  return 'chewy'
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -50,11 +61,6 @@ const FREQ_DAYS_OPTIONS = [
   { value: 90, label: 'Every 3 months' },
 ]
 
-const FREQ_DAYS_LABEL: Record<number, string> = {
-  7: 'Weekly', 14: 'Every 2 weeks', 30: 'Monthly',
-  42: 'Every 6 weeks', 60: 'Every 2 months', 90: 'Every 3 months',
-}
-
 const TIMING_OPTIONS = [
   { value: '6hr',  label: '6 hr before' },
   { value: '12hr', label: '12 hr before' },
@@ -62,9 +68,9 @@ const TIMING_OPTIONS = [
   { value: '48hr', label: '48 hr before' },
 ]
 
-const TIMING_LABEL: Record<string, string> = {
-  '6hr': '6 hr before', '12hr': '12 hr before',
-  '24hr': '24 hr before', '48hr': '48 hr before',
+const SUBSCRIPTION_MANAGE_URLS: Record<string, string> = {
+  amazon: 'https://www.amazon.com/hz/subscriptions/manage',
+  chewy:  'https://www.chewy.com/app/account/autoship',
 }
 
 // ---------------------------------------------------------------------------
@@ -247,6 +253,113 @@ function SeasonalChart({ forecast }: { forecast: ForecastMonth[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Subscription warning banner
+// ---------------------------------------------------------------------------
+function SubscriptionWarning({
+  confidence,
+  retailer,
+  monitorOnly,
+  savingMonitor,
+  onEnableMonitorOnly,
+}: {
+  confidence: string | null
+  retailer: string
+  monitorOnly: boolean
+  savingMonitor: boolean
+  onEnableMonitorOnly: () => void
+}) {
+  const rKey = retailerKey(retailer)
+  const serviceName = rKey === 'amazon' ? 'Subscribe & Save' : rKey === 'chewy' ? 'Chewy Autoship' : 'a retailer subscription'
+
+  if (monitorOnly) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+        <Eye size={13} className="text-gray-400 dark:text-gray-500 shrink-0" />
+        <p className="text-[11px] text-gray-500 dark:text-gray-400 font-body">
+          Monitoring only — auto-order paused
+        </p>
+      </div>
+    )
+  }
+
+  const isHigh = confidence === 'high'
+  const message = isHigh
+    ? `This product may already be on ${serviceName}. Enable monitor-only mode to avoid double-ordering.`
+    : `This product might already be on a retailer subscription. Verify before enabling auto-order.`
+
+  return (
+    <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/30">
+      <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-amber-800 dark:text-amber-300 font-body leading-relaxed">
+          {message}
+        </p>
+        <button
+          onClick={onEnableMonitorOnly}
+          disabled={savingMonitor}
+          className="mt-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400 hover:text-amber-900 dark:hover:text-amber-200 underline underline-offset-2 font-body disabled:opacity-50 transition-colors"
+        >
+          {savingMonitor ? 'Saving…' : 'Enable monitor-only mode'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Consolidation prompt modal
+// ---------------------------------------------------------------------------
+function ConsolidationPrompt({
+  retailerKey: rKey,
+  onDismiss,
+  onSwitch,
+}: {
+  retailerKey: 'amazon' | 'chewy'
+  onDismiss: () => void
+  onSwitch: () => void
+}) {
+  const isAmazon = rKey === 'amazon'
+  const serviceName = isAmazon ? 'Subscribe & Save' : 'Chewy Autoship'
+  const retailerLabel = isAmazon ? 'Amazon' : 'Chewy'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" style={{ zIndex: 9999 }}>
+      <div className="w-full max-w-md bg-white dark:bg-[#16213E] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-white/10">
+          <h2 className="text-sm font-semibold text-gray-800 dark:text-white font-heading">
+            Already subscribed on {retailerLabel}?
+          </h2>
+          <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm text-gray-600 dark:text-gray-300 font-body leading-relaxed">
+            Restox gives you more flexibility than {serviceName} — no locked-in intervals, works across
+            all your retailers, and AI that adjusts timing automatically. You can cancel your {serviceName}{' '}
+            subscription and let Restox handle it instead.
+          </p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={onSwitch}
+              className="w-full py-2.5 text-sm font-semibold text-white bg-rx-orange hover:bg-rx-orange/90 rounded-xl transition-colors font-heading"
+            >
+              Switch to Restox
+            </button>
+            <button
+              onClick={onDismiss}
+              className="w-full py-2 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 font-body transition-colors"
+            >
+              I&apos;ll stick with {serviceName}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Single schedule card
 // ---------------------------------------------------------------------------
 function ScheduleCard({
@@ -259,26 +372,44 @@ function ScheduleCard({
   onDelete: (id: string) => void
 }) {
   const supabase = createSupabaseBrowserClient()
-  const [saving, setSaving]       = useState<string | null>(null)
-  const [showDelete, setShowDelete] = useState(false)
-  const [deleting, setDeleting]   = useState(false)
-  const [customFreq, setCustomFreq] = useState<{ num: number; unit: FreqUnit } | null>(null)
+  const [saving, setSaving]           = useState<string | null>(null)
+  const [savingMonitor, setSavingMonitor] = useState(false)
+  const [showDelete, setShowDelete]   = useState(false)
+  const [deleting, setDeleting]       = useState(false)
+  const [customFreq, setCustomFreq]   = useState<{ num: number; unit: FreqUnit } | null>(null)
   const [customFreqError, setCustomFreqError] = useState(false)
 
   const productName  = schedule.product_name || 'Unknown product'
   const retailerName = schedule.retailer || '—'
+  const isMonitorOnly = schedule.monitor_only
+  const showWarning = schedule.subscription_detected && !isMonitorOnly
 
   const customDays = customFreq ? freqToDays(customFreq.num, customFreq.unit) : 0
 
-  const patch = useCallback(async (field: string, value: string | number) => {
+  const patch = useCallback(async (field: string, value: string | number | boolean) => {
     setSaving(field)
     const { error } = await supabase
       .from('purchase_schedules')
       .update({ [field]: value })
       .eq('id', schedule.id)
-    if (!error) onUpdate(schedule.id, { [field]: value })
+    if (!error) onUpdate(schedule.id, { [field]: value } as Partial<Schedule>)
     setSaving(null)
   }, [supabase, schedule.id, onUpdate])
+
+  const toggleMonitorOnly = async () => {
+    const next = !schedule.monitor_only
+    setSavingMonitor(true)
+    try {
+      const res = await fetch(`/api/schedules/${schedule.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monitor_only: next }),
+      })
+      if (res.ok) onUpdate(schedule.id, { monitor_only: next })
+    } finally {
+      setSavingMonitor(false)
+    }
+  }
 
   const handleFreqChange = (v: string) => {
     if (v === 'custom') {
@@ -315,7 +446,11 @@ function ScheduleCard({
   }
 
   return (
-    <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-5 space-y-4">
+    <div className={`bg-white dark:bg-[#16213E] rounded-xl border shadow-sm dark:shadow-none p-5 space-y-4 transition-opacity ${
+      isMonitorOnly
+        ? 'border-gray-100 dark:border-white/5 opacity-75'
+        : 'border-gray-100 dark:border-white/10'
+    }`}>
       {/* Header row */}
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center shrink-0">
@@ -334,6 +469,17 @@ function ScheduleCard({
           <StatusBadge status={schedule.status} />
         </div>
       </div>
+
+      {/* Subscription warning / monitor-only badge */}
+      {(showWarning || isMonitorOnly) && (
+        <SubscriptionWarning
+          confidence={schedule.subscription_confidence}
+          retailer={schedule.retailer}
+          monitorOnly={isMonitorOnly}
+          savingMonitor={savingMonitor}
+          onEnableMonitorOnly={toggleMonitorOnly}
+        />
+      )}
 
       {/* Controls row */}
       <div className="flex items-center gap-2 flex-wrap">
@@ -361,6 +507,21 @@ function ScheduleCard({
           <ChannelIcon channel={schedule.notification_channel} />
           {schedule.notification_channel}
         </span>
+
+        {/* Monitor-only toggle */}
+        <button
+          onClick={toggleMonitorOnly}
+          disabled={savingMonitor}
+          title={isMonitorOnly ? 'Disable monitor-only mode' : 'Enable monitor-only mode'}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors font-body disabled:opacity-50 ${
+            isMonitorOnly
+              ? 'bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20'
+              : 'text-gray-400 dark:text-gray-600 hover:bg-gray-100 dark:hover:bg-white/5'
+          }`}
+        >
+          <Eye size={12} />
+          {savingMonitor ? '…' : isMonitorOnly ? 'Monitor only' : 'Monitor'}
+        </button>
 
         {/* Pause / Resume */}
         <button
@@ -396,7 +557,7 @@ function ScheduleCard({
         </div>
       </div>
 
-      {/* Custom frequency row — animated, suppresses space-y margin when hidden */}
+      {/* Custom frequency row — animated */}
       <div className={`overflow-hidden transition-all duration-200 ${
         customFreq ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0 !mt-0'
       }`}>
@@ -469,22 +630,58 @@ export default function SchedulesPage() {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<FilterTab>('all')
+  const [promptRetailer, setPromptRetailer] = useState<'amazon' | 'chewy' | null>(null)
+  const [manageLinkRetailer, setManageLinkRetailer] = useState<'amazon' | 'chewy' | null>(null)
 
   const fetchSchedules = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const { data } = await supabase
-      .from('purchase_schedules')
-      .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at, monthly_forecast')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
+    const [schedulesRes, userRes] = await Promise.all([
+      supabase
+        .from('purchase_schedules')
+        .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at, monthly_forecast, subscription_detected, subscription_confidence, subscription_interval_days, monitor_only')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('users')
+        .select('subscription_prompt_dismissed')
+        .eq('id', user.id)
+        .single(),
+    ])
 
-    setSchedules((data as Schedule[]) ?? [])
+    const rows = (schedulesRes.data as Schedule[]) ?? []
+    setSchedules(rows)
     setLoading(false)
+
+    // Determine which consolidation prompt to show
+    const dismissed: Record<string, boolean> = (userRes.data?.subscription_prompt_dismissed ?? {}) as Record<string, boolean>
+    const retailerKeys = rows
+      .map(s => retailerKey(s.retailer ?? ''))
+      .filter((k): k is 'amazon' | 'chewy' => k !== null)
+    const unique = Array.from(new Set(retailerKeys))
+    const toPrompt = unique.find(k => !dismissed[k]) ?? null
+    setPromptRetailer(toPrompt)
   }, [supabase])
 
   useEffect(() => { fetchSchedules() }, [fetchSchedules])
+
+  const dismissPrompt = useCallback(async (key: 'amazon' | 'chewy') => {
+    setPromptRetailer(null)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    // Merge dismissed flag — use jsonb path update via rpc or just re-read and write
+    const { data } = await supabase
+      .from('users')
+      .select('subscription_prompt_dismissed')
+      .eq('id', user.id)
+      .single()
+    const current = (data?.subscription_prompt_dismissed ?? {}) as Record<string, boolean>
+    await supabase
+      .from('users')
+      .update({ subscription_prompt_dismissed: { ...current, [key]: true } })
+      .eq('id', user.id)
+  }, [supabase])
 
   const handleUpdate = useCallback((id: string, patch: Partial<Schedule>) => {
     setSchedules(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s))
@@ -590,6 +787,19 @@ export default function SchedulesPage() {
             />
           ))}
         </div>
+      )}
+
+      {/* Consolidation prompt — one-time per retailer */}
+      {promptRetailer && (
+        <ConsolidationPrompt
+          retailerKey={promptRetailer}
+          onDismiss={() => dismissPrompt(promptRetailer)}
+          onSwitch={() => {
+            setManageLinkRetailer(promptRetailer)
+            dismissPrompt(promptRetailer)
+            window.open(SUBSCRIPTION_MANAGE_URLS[promptRetailer], '_blank', 'noopener')
+          }}
+        />
       )}
     </div>
   )

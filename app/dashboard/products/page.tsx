@@ -237,6 +237,9 @@ function AddScheduleModal({ product, onClose, onCreated }: {
       const { error: err } = await supabase.from('purchase_schedules').insert(payload)
       if (err) { console.error('[AddSchedule] error:', err); throw err }
 
+      // Trigger subscription detection non-blocking
+      fetch('/api/schedules/detect-subscriptions', { method: 'POST' }).catch(() => {})
+
       // Seed initial price data in background (fire and forget)
       fetch('/api/price-compare', {
         method: 'POST',

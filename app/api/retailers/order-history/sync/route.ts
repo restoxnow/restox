@@ -175,5 +175,18 @@ export async function POST(req: NextRequest) {
     synced.push(retailer.name)
   }
 
+  // Non-blocking: re-run subscription detection for this user after sync
+  if (synced.length > 0) {
+    const base = req.nextUrl.origin
+    fetch(`${base}/api/schedules/detect-subscriptions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${syncSecret ?? ''}`,
+      },
+      body: JSON.stringify({ user_id: userId }),
+    }).catch(() => {})
+  }
+
   return NextResponse.json({ synced, skipped })
 }
