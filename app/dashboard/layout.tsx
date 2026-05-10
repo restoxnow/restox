@@ -74,16 +74,21 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
         {/* Footer */}
         <footer className="shrink-0 bg-white dark:bg-[#16213E] border-t border-gray-100 dark:border-white/10 px-6 py-2.5">
-          <div className="flex items-center justify-center gap-3 flex-wrap text-[11px] text-gray-400 dark:text-gray-600 font-body">
-            <span>© 2026 Restox LLC</span>
-            <span className="text-gray-200 dark:text-white/10">·</span>
-            <a href="/privacy" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Privacy Policy</a>
-            <span className="text-gray-200 dark:text-white/10">·</span>
-            <a href="/terms" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Terms of Service</a>
-            <span className="text-gray-200 dark:text-white/10">·</span>
-            <a href="mailto:support@restox.net" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">support@restox.net</a>
-            <span className="text-gray-200 dark:text-white/10">·</span>
-            <ReportIssueLink />
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center justify-center gap-3 flex-wrap text-[11px] text-gray-400 dark:text-gray-600 font-body">
+              <span>© 2026 Restox LLC</span>
+              <span className="text-gray-200 dark:text-white/10">·</span>
+              <a href="/privacy" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Privacy Policy</a>
+              <span className="text-gray-200 dark:text-white/10">·</span>
+              <a href="/terms" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">Terms of Service</a>
+              <span className="text-gray-200 dark:text-white/10">·</span>
+              <a href="mailto:support@restox.net" className="hover:text-gray-600 dark:hover:text-gray-400 transition-colors">support@restox.net</a>
+              <span className="text-gray-200 dark:text-white/10">·</span>
+              <ReportIssueLink />
+            </div>
+            <p className="text-[10px] text-gray-300 dark:text-gray-700 font-body">
+              As an Amazon Associate, Restox earns from qualifying purchases.
+            </p>
           </div>
         </footer>
       </div>

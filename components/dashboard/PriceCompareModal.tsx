@@ -151,6 +151,11 @@ export default function PriceCompareModal({ product, onClose, onRetailerSwitched
                   Currently buying from <span className="font-semibold text-rx-navy dark:text-white">{currentRetailerName}</span>
                 </p>
               )}
+              {comparisons.some(r => r.retailer_name.toLowerCase().includes('amazon')) && (
+                <p className="text-[10px] italic text-gray-300 dark:text-gray-600 font-body mb-2">
+                  As an Amazon Associate, Restox earns from qualifying purchases.
+                </p>
+              )}
               {comparisons.map(row => {
                 const isLowest   = row.price === lowestPrice
                 const isCurrent  = row.retailer_id === currentRetailerId

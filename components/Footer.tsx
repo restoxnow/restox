@@ -157,7 +157,7 @@ export default function Footer() {
             © 2025 Restox. All rights reserved.
           </p>
           <p className="text-white/30 font-body text-xs text-center sm:text-right">
-            As an Amazon Associate I earn from qualifying purchases.
+            As an Amazon Associate, Restox earns from qualifying purchases.
           </p>
         </div>
       </div>
