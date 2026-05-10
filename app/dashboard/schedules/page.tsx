@@ -11,6 +11,11 @@ import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+interface ForecastMonth {
+  month: string
+  relative_demand: number
+}
+
 interface Schedule {
   id: string
   frequency_days: number
@@ -21,9 +26,17 @@ interface Schedule {
   created_at: string
   product_name: string
   retailer: string
+  monthly_forecast: ForecastMonth[] | null
 }
 
 type FilterTab = 'all' | 'active' | 'paused'
+type FreqUnit = 'days' | 'weeks' | 'months'
+
+function freqToDays(num: number, unit: FreqUnit): number {
+  if (unit === 'weeks')  return num * 7
+  if (unit === 'months') return num * 30
+  return num
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -179,6 +192,61 @@ function ChannelIcon({ channel }: { channel: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Seasonal demand bar chart
+// ---------------------------------------------------------------------------
+const CHART_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const BAR_W = 8
+const BAR_GAP = 3
+const CHART_H = 32
+const CHART_W = 12 * (BAR_W + BAR_GAP) - BAR_GAP
+
+function SeasonalChart({ forecast }: { forecast: ForecastMonth[] }) {
+  const [tooltip, setTooltip] = useState<{ label: string; demand: number; x: number } | null>(null)
+  const currentMonth = new Date().getMonth()
+
+  return (
+    <div className="relative pt-1">
+      <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body mb-1.5 select-none">
+        Seasonal demand
+      </p>
+      <svg width={CHART_W} height={CHART_H} className="overflow-visible block">
+        {forecast.map((f, i) => {
+          const barH = Math.max(2, Math.round(f.relative_demand * CHART_H))
+          const x = i * (BAR_W + BAR_GAP)
+          const isCurrent = i === currentMonth
+          const opacity = isCurrent ? 1 : 0.3 + f.relative_demand * 0.55
+          return (
+            <rect
+              key={i}
+              x={x}
+              y={CHART_H - barH}
+              width={BAR_W}
+              height={barH}
+              rx={2}
+              fill={`rgba(244,124,32,${opacity})`}
+              style={isCurrent ? { filter: 'drop-shadow(0 0 3px rgba(244,124,32,0.6))' } : undefined}
+              onMouseEnter={() => setTooltip({ label: CHART_MONTHS[i], demand: f.relative_demand, x })}
+              onMouseLeave={() => setTooltip(null)}
+              className="cursor-default"
+            />
+          )
+        })}
+      </svg>
+      {tooltip && (
+        <div
+          className="absolute bottom-full mb-1 pointer-events-none z-10"
+          style={{ left: tooltip.x }}
+        >
+          <div className="bg-gray-900 text-white text-[10px] rounded px-2 py-1 whitespace-nowrap font-body shadow-lg">
+            {tooltip.label} · {tooltip.demand < 0.35 ? 'Low' : tooltip.demand < 0.65 ? 'Normal' : 'High'}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Single schedule card
 // ---------------------------------------------------------------------------
 function ScheduleCard({
@@ -191,12 +259,16 @@ function ScheduleCard({
   onDelete: (id: string) => void
 }) {
   const supabase = createSupabaseBrowserClient()
-  const [saving, setSaving] = useState<string | null>(null)
+  const [saving, setSaving]       = useState<string | null>(null)
   const [showDelete, setShowDelete] = useState(false)
-  const [deleting, setDeleting] = useState(false)
+  const [deleting, setDeleting]   = useState(false)
+  const [customFreq, setCustomFreq] = useState<{ num: number; unit: FreqUnit } | null>(null)
+  const [customFreqError, setCustomFreqError] = useState(false)
 
   const productName  = schedule.product_name || 'Unknown product'
   const retailerName = schedule.retailer || '—'
+
+  const customDays = customFreq ? freqToDays(customFreq.num, customFreq.unit) : 0
 
   const patch = useCallback(async (field: string, value: string | number) => {
     setSaving(field)
@@ -207,6 +279,24 @@ function ScheduleCard({
     if (!error) onUpdate(schedule.id, { [field]: value })
     setSaving(null)
   }, [supabase, schedule.id, onUpdate])
+
+  const handleFreqChange = (v: string) => {
+    if (v === 'custom') {
+      setCustomFreq({ num: 6, unit: 'weeks' })
+      setCustomFreqError(false)
+    } else {
+      setCustomFreq(null)
+      setCustomFreqError(false)
+      patch('frequency_days', parseInt(v))
+    }
+  }
+
+  const applyCustomFreq = () => {
+    if (!customFreq || customFreq.num < 1) { setCustomFreqError(true); return }
+    setCustomFreqError(false)
+    patch('frequency_days', customDays)
+    setCustomFreq(null)
+  }
 
   const togglePause = () => {
     const next = schedule.status === 'active' ? 'paused' : 'active'
@@ -249,9 +339,12 @@ function ScheduleCard({
       <div className="flex items-center gap-2 flex-wrap">
         {/* Frequency */}
         <InlineSelect
-          value={String(schedule.frequency_days)}
-          options={FREQ_DAYS_OPTIONS.map(o => ({ value: String(o.value), label: o.label }))}
-          onChange={v => patch('frequency_days', parseInt(v))}
+          value={customFreq ? 'custom' : String(schedule.frequency_days)}
+          options={[
+            ...FREQ_DAYS_OPTIONS.map(o => ({ value: String(o.value), label: o.label })),
+            { value: 'custom', label: 'Custom…' },
+          ]}
+          onChange={handleFreqChange}
           disabled={saving === 'frequency_days'}
         />
 
@@ -302,6 +395,68 @@ function ScheduleCard({
           )}
         </div>
       </div>
+
+      {/* Custom frequency row — animated, suppresses space-y margin when hidden */}
+      <div className={`overflow-hidden transition-all duration-200 ${
+        customFreq ? 'max-h-32 opacity-100' : 'max-h-0 opacity-0 !mt-0'
+      }`}>
+        <div className="flex items-center gap-2 flex-wrap border-t border-gray-100 dark:border-white/10 pt-3">
+          <input
+            type="number"
+            min={1}
+            max={365}
+            value={customFreq?.num || ''}
+            onChange={e => {
+              const n = parseInt(e.target.value) || 0
+              setCustomFreq(prev => prev ? { ...prev, num: Math.min(365, Math.max(0, n)) } : null)
+              setCustomFreqError(false)
+            }}
+            placeholder="e.g. 6"
+            className="w-16 px-2 py-1 text-xs font-semibold font-body text-center border rounded-lg
+              border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-rx-navy dark:text-white
+              focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange"
+          />
+          <select
+            value={customFreq?.unit ?? 'weeks'}
+            onChange={e => setCustomFreq(prev => prev ? { ...prev, unit: e.target.value as FreqUnit } : null)}
+            className="appearance-none pl-2.5 pr-6 py-1 text-xs font-semibold font-body rounded-lg border
+              border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5
+              text-rx-navy dark:text-white focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange"
+          >
+            <option value="days">Days</option>
+            <option value="weeks">Weeks</option>
+            <option value="months">Months</option>
+          </select>
+          {customFreq && customFreq.num >= 1 && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 font-body">
+              = {customDays} day{customDays !== 1 ? 's' : ''}
+            </span>
+          )}
+          {customFreqError && (
+            <span className="text-xs text-red-500 font-body">Please enter a valid frequency</span>
+          )}
+          <button
+            onClick={applyCustomFreq}
+            disabled={!!saving}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg bg-rx-orange hover:bg-rx-orange-dark text-white transition-colors font-body disabled:opacity-50"
+          >
+            {saving === 'frequency_days' ? '…' : 'Apply'}
+          </button>
+          <button
+            onClick={() => { setCustomFreq(null); setCustomFreqError(false) }}
+            className="px-2.5 py-1 text-xs font-semibold rounded-lg border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-body"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+
+      {/* Seasonal demand chart */}
+      {schedule.monthly_forecast && schedule.monthly_forecast.length === 12 && (
+        <div className="border-t border-gray-100 dark:border-white/10 pt-3">
+          <SeasonalChart forecast={schedule.monthly_forecast} />
+        </div>
+      )}
     </div>
   )
 }
@@ -321,7 +476,7 @@ export default function SchedulesPage() {
 
     const { data } = await supabase
       .from('purchase_schedules')
-      .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at')
+      .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at, monthly_forecast')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
 

@@ -31,12 +31,20 @@ type FilterTab = 'all' | 'scheduled' | 'unscheduled'
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-const FREQ_OPTIONS = [
-  { value: 'weekly',    label: 'Weekly' },
-  { value: 'bi-weekly', label: 'Every 2 weeks' },
-  { value: 'monthly',   label: 'Monthly' },
-  { value: 'quarterly', label: 'Quarterly' },
+const FREQ_PRESETS = [
+  { value: 7,  label: 'Weekly' },
+  { value: 14, label: 'Every 2 weeks' },
+  { value: 30, label: 'Monthly' },
+  { value: 91, label: 'Quarterly' },
 ]
+
+type FreqUnit = 'days' | 'weeks' | 'months'
+
+function freqToDays(num: number, unit: FreqUnit): number {
+  if (unit === 'weeks')  return num * 7
+  if (unit === 'months') return num * 30
+  return num
+}
 
 const TIMING_OPTIONS = [
   { value: '6hr',  label: '6 hr before' },
@@ -173,16 +181,37 @@ function AddScheduleModal({ product, onClose, onCreated }: {
   onCreated: (productId: string) => void
 }) {
   const supabase = createSupabaseBrowserClient()
-  const [frequency, setFrequency] = useState('monthly')
-  const [timing, setTiming] = useState('24hr')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [freqDays, setFreqDays]     = useState(30)
+  const [isCustom, setIsCustom]     = useState(false)
+  const [customNum, setCustomNum]   = useState(6)
+  const [customUnit, setCustomUnit] = useState<FreqUnit>('weeks')
+  const [freqError, setFreqError]   = useState('')
+  const [timing, setTiming]         = useState('24hr')
+  const [loading, setLoading]       = useState(false)
+  const [error, setError]           = useState('')
+
+  const computedCustomDays = freqToDays(customNum, customUnit)
+  const finalFreqDays = isCustom ? computedCustomDays : freqDays
 
   const selectCls = `w-full px-4 py-2.5 border rounded-xl text-sm font-body appearance-none
     focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
     border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-rx-navy dark:text-white`
 
+  const handleFreqChange = (v: string) => {
+    setFreqError('')
+    if (v === 'custom') {
+      setIsCustom(true)
+    } else {
+      setIsCustom(false)
+      setFreqDays(parseInt(v))
+    }
+  }
+
   const handleCreate = async () => {
+    if (isCustom && customNum < 1) {
+      setFreqError('Please enter a valid frequency')
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -192,7 +221,7 @@ function AddScheduleModal({ product, onClose, onCreated }: {
       const { error: err } = await supabase.from('purchase_schedules').insert({
         product_id: product.id,
         user_id: user.id,
-        frequency,
+        frequency_days: finalFreqDays,
         status: 'active',
         ai_managed: false,
         notification_timing: timing,
@@ -245,11 +274,58 @@ function AddScheduleModal({ product, onClose, onCreated }: {
               Reorder frequency
             </label>
             <div className="relative">
-              <select value={frequency} onChange={e => setFrequency(e.target.value)} className={selectCls}>
-                {FREQ_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              <select
+                value={isCustom ? 'custom' : String(freqDays)}
+                onChange={e => handleFreqChange(e.target.value)}
+                className={selectCls}
+              >
+                {FREQ_PRESETS.map(o => (
+                  <option key={o.value} value={String(o.value)}>{o.label}</option>
+                ))}
+                <option value="custom">Custom…</option>
               </select>
               <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
             </div>
+
+            {/* Custom row — animated */}
+            <div className={`overflow-hidden transition-all duration-200 ${isCustom ? 'max-h-24 opacity-100 mt-2' : 'max-h-0 opacity-0'}`}>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={customNum || ''}
+                  onChange={e => {
+                    const n = parseInt(e.target.value) || 0
+                    setCustomNum(Math.min(365, Math.max(0, n)))
+                    if (freqError) setFreqError('')
+                  }}
+                  placeholder="e.g. 6"
+                  className="w-24 px-3 py-2.5 border rounded-xl text-sm font-body appearance-none
+                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
+                    border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-rx-navy dark:text-white"
+                />
+                <div className="relative flex-1">
+                  <select
+                    value={customUnit}
+                    onChange={e => setCustomUnit(e.target.value as FreqUnit)}
+                    className={selectCls}
+                  >
+                    <option value="days">Days</option>
+                    <option value="weeks">Weeks</option>
+                    <option value="months">Months</option>
+                  </select>
+                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400" />
+                </div>
+              </div>
+              {isCustom && customNum >= 1 && (
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-1.5">
+                  = {computedCustomDays} day{computedCustomDays !== 1 ? 's' : ''}
+                </p>
+              )}
+            </div>
+
+            {freqError && <p className="text-red-500 text-xs font-body mt-1.5">{freqError}</p>}
           </div>
 
           {/* Notification timing */}

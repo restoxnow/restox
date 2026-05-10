@@ -142,7 +142,20 @@ export async function GET(
     return errorRedirect('Failed to save connection — please try again')
   }
 
-  // ── 9. Clear cookies + redirect to success ────────────────────────────────
+  // ── 9. Fire n8n webhook to trigger immediate order history sync ──────────
+  const syncWebhook = process.env.N8N_ORDER_SYNC_WEBHOOK
+  if (syncWebhook) {
+    // Fire-and-forget — don't block the redirect on this
+    fetch(syncWebhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: stateCookie.userId }),
+    }).catch((err) => {
+      console.warn('[Restox] n8n sync webhook failed:', err.message)
+    })
+  }
+
+  // ── 10. Clear cookies + redirect to success ───────────────────────────────
   const isProduction = process.env.NODE_ENV === 'production'
   const clearOpts = {
     httpOnly: true,

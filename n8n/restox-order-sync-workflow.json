@@ -1,0 +1,338 @@
+{
+  "name": "Restox — Daily Order History Sync",
+  "nodes": [
+    {
+      "id": "3f1a2b4c-0001-4e00-8000-100000000001",
+      "name": "Daily 3AM Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 340],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 3 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3f1a2b4c-0002-4e00-8000-100000000002",
+      "name": "Fetch OAuth Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 340],
+      "parameters": {
+        "method": "GET",
+        "url": "https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/retailers",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcHR3dnViZWJ4ampreGt6cXFlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODAxMjIxMCwiZXhwIjoyMDkzNTg4MjEwfQ.gJgRxeX5lIPTwMOecuvDlU8upM945rtfTXxmHyYcezE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcHR3dnViZWJ4ampreGt6cXFlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODAxMjIxMCwiZXhwIjoyMDkzNTg4MjEwfQ.gJgRxeX5lIPTwMOecuvDlU8upM945rtfTXxmHyYcezE"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "select",
+              "value": "user_id"
+            },
+            {
+              "name": "connection_type",
+              "value": "eq.oauth"
+            },
+            {
+              "name": "connection_status",
+              "value": "eq.connected"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "3f1a2b4c-0003-4e00-8000-100000000003",
+      "name": "Deduplicate Users",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 340],
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst unique = [];\nfor (const item of $input.all()) {\n  const uid = item.json.user_id;\n  if (uid && !seen.has(uid)) {\n    seen.add(uid);\n    unique.push({ json: { user_id: uid } });\n  }\n}\nreturn unique;"
+      }
+    },
+    {
+      "id": "3f1a2b4c-0004-4e00-8000-100000000004",
+      "name": "Init Error Tracker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 340],
+      "parameters": {
+        "jsCode": "$workflow.staticData.syncErrors = [];\nreturn $input.all();"
+      }
+    },
+    {
+      "id": "3f1a2b4c-0005-4e00-8000-100000000005",
+      "name": "Loop Users",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1120, 340],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "3f1a2b4c-0006-4e00-8000-100000000006",
+      "name": "Sync User History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 520],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://restox.net/api/retailers/order-history/sync",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer b431e44d01c09348acf88c591ec9d88c759fbac2780a624382e93121b9490ad9"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.user_id }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "3f1a2b4c-0007-4e00-8000-100000000007",
+      "name": "Track Sync Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 700],
+      "parameters": {
+        "jsCode": "const errors = $workflow.staticData.syncErrors || [];\nfor (const item of $input.all()) {\n  if (item.json.error) {\n    errors.push({\n      timestamp: new Date().toISOString(),\n      error: typeof item.json.error === 'string'\n        ? item.json.error\n        : JSON.stringify(item.json.error)\n    });\n  }\n}\n$workflow.staticData.syncErrors = errors;\nreturn $input.all();"
+      }
+    },
+    {
+      "id": "3f1a2b4c-0008-4e00-8000-100000000008",
+      "name": "Wait 2 Seconds",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1120, 880],
+      "webhookId": "3f1a2b4c-wait-4e00-8000-100000000008",
+      "parameters": {
+        "resume": "timeInterval",
+        "amount": 2,
+        "unit": "seconds"
+      }
+    },
+    {
+      "id": "3f1a2b4c-0009-4e00-8000-100000000009",
+      "name": "Get Error Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 340],
+      "parameters": {
+        "jsCode": "const errors = $workflow.staticData.syncErrors || [];\n$workflow.staticData.syncErrors = [];\nreturn [{ json: { errorCount: errors.length, errors: errors } }];"
+      }
+    },
+    {
+      "id": "3f1a2b4c-0010-4e00-8000-100000000010",
+      "name": "Too Many Failures?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 340],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-error-threshold",
+              "leftValue": "={{ $json.errorCount }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "3f1a2b4c-0011-4e00-8000-100000000011",
+      "name": "Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE_WITH_YOUR_SLACK_WEBHOOK_URL",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \":warning: *Restox Daily Sync Alert*\\n*{{ $json.errorCount }} user syncs failed* during the daily order history run (3 AM UTC).\\nCheck the n8n execution log for details.\"\n}",
+        "options": {
+          "timeout": 10000
+        }
+      }
+    },
+    {
+      "id": "3f1a2b4c-0012-4e00-8000-100000000012",
+      "name": "On Retailer Connect",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 120],
+      "webhookId": "3f1a2b4c-hook-4e00-8000-100000000012",
+      "parameters": {
+        "path": "restox-retailer-connect",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "3f1a2b4c-0013-4e00-8000-100000000013",
+      "name": "Immediate Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 120],
+      "continueOnFail": true,
+      "parameters": {
+        "method": "POST",
+        "url": "https://restox.net/api/retailers/order-history/sync",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer b431e44d01c09348acf88c591ec9d88c759fbac2780a624382e93121b9490ad9"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $json.body.user_id }}\"\n}",
+        "options": {
+          "timeout": 30000
+        }
+      }
+    },
+    {
+      "id": "3f1a2b4c-0014-4e00-8000-100000000014",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [680, 120],
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "ok",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 3AM Schedule": {
+      "main": [
+        [{ "node": "Fetch OAuth Users", "type": "main", "index": 0 }]
+      ]
+    },
+    "Fetch OAuth Users": {
+      "main": [
+        [{ "node": "Deduplicate Users", "type": "main", "index": 0 }]
+      ]
+    },
+    "Deduplicate Users": {
+      "main": [
+        [{ "node": "Init Error Tracker", "type": "main", "index": 0 }]
+      ]
+    },
+    "Init Error Tracker": {
+      "main": [
+        [{ "node": "Loop Users", "type": "main", "index": 0 }]
+      ]
+    },
+    "Loop Users": {
+      "main": [
+        [{ "node": "Sync User History", "type": "main", "index": 0 }],
+        [{ "node": "Get Error Count", "type": "main", "index": 0 }]
+      ]
+    },
+    "Sync User History": {
+      "main": [
+        [{ "node": "Track Sync Result", "type": "main", "index": 0 }]
+      ]
+    },
+    "Track Sync Result": {
+      "main": [
+        [{ "node": "Wait 2 Seconds", "type": "main", "index": 0 }]
+      ]
+    },
+    "Wait 2 Seconds": {
+      "main": [
+        [{ "node": "Loop Users", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Error Count": {
+      "main": [
+        [{ "node": "Too Many Failures?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Too Many Failures?": {
+      "main": [
+        [{ "node": "Slack Alert", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "On Retailer Connect": {
+      "main": [
+        [{ "node": "Immediate Sync", "type": "main", "index": 0 }]
+      ]
+    },
+    "Immediate Sync": {
+      "main": [
+        [{ "node": "Webhook Response", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [{ "name": "restox" }],
+  "versionId": "3f1a2b4c-ffff-4e00-8000-100000000000"
+}
