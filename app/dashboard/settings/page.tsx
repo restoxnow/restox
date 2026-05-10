@@ -69,7 +69,10 @@ function SettingsContent() {
   )
   const { theme, setTheme } = useTheme()
   const supabase = createSupabaseBrowserClient()
-  const { isBusinessOnly } = useUserTier()
+  const { isBusinessOnly, bypassGates } = useUserTier()
+
+  // Nudge email preference
+  const [nudgeEmailUnsubscribed, setNudgeEmailUnsubscribed] = useState(false)
 
   // Billing state
   const [currentPlan, setCurrentPlan] = useState('free')
@@ -104,13 +107,14 @@ function SettingsContent() {
       setEmail(user.email ?? '')
       const { data } = await supabase
         .from('users')
-        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at')
+        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at, nudge_email_unsubscribed')
         .eq('id', user.id)
         .single()
       if (data) {
         setFullName(data.full_name ?? '')
         setCurrentPlan((data.plan_tier as string | null) ?? 'free')
         setFocusGroupExpiry((data.focus_group_access_expires_at as string | null) ?? null)
+        setNudgeEmailUnsubscribed((data.nudge_email_unsubscribed as boolean | null) ?? false)
         setHouseholdSize(String(data.household_size ?? 1))
         setDefaultFrequency(data.default_frequency ?? 'monthly')
         const addrs = data.shipping_addresses
@@ -175,6 +179,19 @@ function SettingsContent() {
     } finally {
       setRedeeming(false)
     }
+  }
+
+  const handleNudgeEmailToggle = async () => {
+    const newSubscribed = nudgeEmailUnsubscribed // flipping: if currently unsub, we're re-enabling
+    const nextUnsubscribed = !nudgeEmailUnsubscribed
+    setNudgeEmailUnsubscribed(nextUnsubscribed)
+    try {
+      await fetch('/api/nudge/email-preference', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscribe: newSubscribed }),
+      })
+    } catch { /* silent */ }
   }
 
   const handleThemeChange = async (newTheme: string) => {
@@ -401,6 +418,31 @@ function SettingsContent() {
                   </div>
                 </div>
               ))}
+
+              {/* Nudge email toggle — Free and Consumer users only, not admins */}
+              {!bypassGates && ['free', 'consumer'].includes(currentPlan) && (
+                <div className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-white/5">
+                  <div>
+                    <p className="text-sm font-medium text-rx-navy dark:text-white font-body">
+                      Weekly upgrade insights emails
+                    </p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 font-body">
+                      Get a weekly email when Restox detects products you reorder regularly. In-app notifications are always on.
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleNudgeEmailToggle}
+                    aria-pressed={!nudgeEmailUnsubscribed}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${
+                      nudgeEmailUnsubscribed ? 'bg-gray-200 dark:bg-white/10' : 'bg-rx-orange'
+                    }`}
+                  >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                      nudgeEmailUnsubscribed ? 'translate-x-0.5' : 'translate-x-5'
+                    }`} />
+                  </button>
+                </div>
+              )}
 
               {/* Default reorder frequency */}
               <div className="pt-4">
