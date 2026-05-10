@@ -66,9 +66,16 @@ function SettingsContent() {
   const [section, setSection] = useState<SectionId>(
     tabParam && SECTIONS.some(s => s.id === tabParam) ? tabParam : 'profile'
   )
-  const currentPlan = 'free'
   const { theme, setTheme } = useTheme()
   const supabase = createSupabaseBrowserClient()
+
+  // Billing state
+  const [currentPlan, setCurrentPlan] = useState('free')
+  const [focusGroupExpiry, setFocusGroupExpiry] = useState<string | null>(null)
+  const [redeemCode, setRedeemCode] = useState('')
+  const [redeeming, setRedeeming] = useState(false)
+  const [redeemError, setRedeemError] = useState('')
+  const [redeemSuccess, setRedeemSuccess] = useState('')
 
   // Profile state
   const [fullName, setFullName] = useState('')
@@ -95,11 +102,13 @@ function SettingsContent() {
       setEmail(user.email ?? '')
       const { data } = await supabase
         .from('users')
-        .select('full_name, shipping_addresses, household_size, default_frequency')
+        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at')
         .eq('id', user.id)
         .single()
       if (data) {
         setFullName(data.full_name ?? '')
+        setCurrentPlan((data.plan_tier as string | null) ?? 'free')
+        setFocusGroupExpiry((data.focus_group_access_expires_at as string | null) ?? null)
         setHouseholdSize(String(data.household_size ?? 1))
         setDefaultFrequency(data.default_frequency ?? 'monthly')
         const addrs = data.shipping_addresses
@@ -137,6 +146,32 @@ function SettingsContent() {
       setToast('Error: ' + err.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleRedeem = async () => {
+    const trimmed = redeemCode.trim().toUpperCase()
+    if (!trimmed) return
+    setRedeeming(true)
+    setRedeemError('')
+    setRedeemSuccess('')
+    try {
+      const res = await fetch('/api/access-codes/redeem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: trimmed }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setRedeemError(json.error ?? 'Failed to redeem code'); return }
+      const expiry = new Date(json.access_expires_at)
+      setRedeemSuccess(`Code redeemed! You now have Pro access until ${expiry.toLocaleDateString()}.`)
+      setRedeemCode('')
+      setCurrentPlan('pro')
+      setFocusGroupExpiry(json.access_expires_at)
+    } catch {
+      setRedeemError('Network error. Please try again.')
+    } finally {
+      setRedeeming(false)
     }
   }
 
@@ -394,39 +429,97 @@ function SettingsContent() {
           )}
 
           {section === 'billing' && (
-            <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-4">
-              <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Billing & Plan</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {PLANS.map(plan => (
-                  <div
-                    key={plan.id}
-                    className={`rounded-xl border-2 p-4 transition-colors
-                      ${currentPlan === plan.id
-                        ? 'border-rx-orange bg-rx-orange-light dark:bg-rx-orange/10'
-                        : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
-                      }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-heading font-bold text-rx-navy dark:text-white text-sm">{plan.label}</span>
-                      {currentPlan === plan.id && (
-                        <span className="text-[10px] font-bold text-rx-orange border border-rx-orange/30 bg-white dark:bg-white/10 px-1.5 py-0.5 rounded-full">Current</span>
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-4">
+                <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Billing & Plan</h2>
+
+                {/* Focus group expiry notice */}
+                {focusGroupExpiry && (
+                  <div className="flex items-start gap-3 bg-rx-orange/5 dark:bg-rx-orange/10 border border-rx-orange/20 rounded-xl p-4">
+                    <span className="text-rx-orange text-lg shrink-0">🎉</span>
+                    <div>
+                      <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">Focus Group Pro Access</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">
+                        Active until{' '}
+                        <span className="font-medium text-rx-navy dark:text-white">
+                          {new Date(focusGroupExpiry).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                        </span>
+                        . Thank you for being a focus group member!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {PLANS.map(plan => (
+                    <div
+                      key={plan.id}
+                      className={`rounded-xl border-2 p-4 transition-colors
+                        ${currentPlan === plan.id
+                          ? 'border-rx-orange bg-rx-orange-light dark:bg-rx-orange/10'
+                          : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-heading font-bold text-rx-navy dark:text-white text-sm">{plan.label}</span>
+                        {currentPlan === plan.id && (
+                          <span className="text-[10px] font-bold text-rx-orange border border-rx-orange/30 bg-white dark:bg-white/10 px-1.5 py-0.5 rounded-full">Current</span>
+                        )}
+                      </div>
+                      <p className="text-lg font-bold font-heading text-rx-navy dark:text-white">{plan.price}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5 mb-2">{plan.schedules}</p>
+                      <ul className="space-y-0.5">
+                        {plan.features.map(f => (
+                          <li key={f} className="text-xs text-gray-500 dark:text-gray-400 font-body">· {f}</li>
+                        ))}
+                      </ul>
+                      {currentPlan !== plan.id && (
+                        <button className="mt-3 w-full py-1.5 bg-rx-orange text-white text-xs font-bold rounded-lg hover:bg-rx-orange-dark transition-colors font-body">
+                          Upgrade
+                        </button>
                       )}
                     </div>
-                    <p className="text-lg font-bold font-heading text-rx-navy dark:text-white">{plan.price}</p>
-                    <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5 mb-2">{plan.schedules}</p>
-                    <ul className="space-y-0.5">
-                      {plan.features.map(f => (
-                        <li key={f} className="text-xs text-gray-500 dark:text-gray-400 font-body">· {f}</li>
-                      ))}
-                    </ul>
-                    {currentPlan !== plan.id && (
-                      <button className="mt-3 w-full py-1.5 bg-rx-orange text-white text-xs font-bold rounded-lg hover:bg-rx-orange-dark transition-colors font-body">
-                        Upgrade
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
+
+              {/* Focus group code redemption */}
+              {!focusGroupExpiry && (
+                <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-3">
+                  <div>
+                    <h3 className="font-heading font-semibold text-rx-navy dark:text-white text-sm">Have a focus group code?</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">
+                      Enter your code below to unlock 2 months of full Pro access.
+                    </p>
+                  </div>
+                  {redeemSuccess ? (
+                    <div className="flex items-center gap-2 text-green-600 dark:text-green-400">
+                      <CheckCircle size={15} />
+                      <p className="text-sm font-body">{redeemSuccess}</p>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={redeemCode}
+                        onChange={e => { setRedeemCode(e.target.value.toUpperCase()); setRedeemError('') }}
+                        placeholder="RESTOX-BETA-XXXXXX"
+                        className="flex-1 px-3 py-2 text-sm font-mono bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-rx-navy dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange"
+                      />
+                      <button
+                        onClick={handleRedeem}
+                        disabled={redeeming || !redeemCode.trim()}
+                        className="px-4 py-2 bg-rx-orange hover:bg-rx-orange/90 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors font-body shrink-0"
+                      >
+                        {redeeming ? <Loader2 size={14} className="animate-spin" /> : 'Redeem'}
+                      </button>
+                    </div>
+                  )}
+                  {redeemError && (
+                    <p className="text-xs text-red-500 font-body">{redeemError}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

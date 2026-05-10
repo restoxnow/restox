@@ -148,6 +148,14 @@ export default function Pricing() {
           </div>
         </div>
 
+        {/* Focus group code link */}
+        <p className="text-center text-sm text-brand-mid font-body mt-2 mb-6">
+          Focus group member?{' '}
+          <a href="/dashboard/settings?tab=billing" className="text-orange-500 hover:text-orange-600 font-semibold underline underline-offset-2 transition-colors">
+            Redeem your code
+          </a>
+        </p>
+
         {/* Plans grid */}
         <div ref={containerRef} className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {plans.map((plan) => (

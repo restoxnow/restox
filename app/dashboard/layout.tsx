@@ -6,6 +6,7 @@ import InactivityTimer from '@/components/dashboard/InactivityTimer'
 import FeedbackButton from '@/components/dashboard/FeedbackButton'
 import ReportIssueLink from '@/components/dashboard/ReportIssueLink'
 import DashboardErrorBoundary from '@/components/dashboard/DashboardErrorBoundary'
+import FocusGroupBanner from '@/components/dashboard/FocusGroupBanner'
 import { UserProvider } from '@/contexts/UserContext'
 import { Search } from 'lucide-react'
 
@@ -21,7 +22,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const { data: profile } = await supabase
     .from('users')
-    .select('is_admin, plan_tier')
+    .select('is_admin, plan_tier, focus_group_access_expires_at')
     .eq('id', user.id)
     .single()
 
@@ -36,6 +37,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     (profile?.plan_tier as string | undefined) ??
     (user.user_metadata?.plan_tier as string | undefined) ??
     'free'
+
+  const focusGroupExpiresAt: string | null =
+    (profile?.focus_group_access_expires_at as string | null) ?? null
 
   return (
     <UserProvider isAdmin={isAdmin} planTier={planTier}>
@@ -64,6 +68,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
           <NotificationsBell />
         </header>
+
+        {/* Focus group expiry banner — shown within 7 days of expiry */}
+        {focusGroupExpiresAt && (
+          <FocusGroupBanner expiresAt={focusGroupExpiresAt} />
+        )}
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-6">

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
-const CATEGORIES = ['Bug Report', 'Broken Link', 'Feature Request', 'Other'] as const
+const CATEGORIES = ['Bug Report', 'Broken Link', 'Feature Request', 'Focus Group Feedback', 'Other'] as const
 type Category = (typeof CATEGORIES)[number]
 
 interface Props {
