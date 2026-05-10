@@ -57,9 +57,9 @@ export async function POST(req: NextRequest) {
   if (code.redeemed_by) {
     await admin
       .from('users')
-      .update({ plan_tier: 'free', plan: 'Free', focus_group_access_expires_at: null })
+      .update({ plan_tier: 'free', focus_group_access_expires_at: null })
       .eq('id', code.redeemed_by)
-      .eq('plan_tier', 'pro') // only revert if still on pro via focus group
+      .eq('plan_tier', 'professional') // only revert if still on professional via focus group
   }
 
   return NextResponse.json({ ok: true })

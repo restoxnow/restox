@@ -82,8 +82,7 @@ export async function POST(req: NextRequest) {
   const { error: userError } = await admin
     .from('users')
     .update({
-      plan_tier: 'pro',
-      plan: 'Pro',
+      plan_tier: 'professional',
       focus_group_access_expires_at: expiresAt.toISOString(),
     })
     .eq('id', user.id)

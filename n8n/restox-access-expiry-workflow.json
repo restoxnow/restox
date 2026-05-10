@@ -82,7 +82,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={ \"plan_tier\": \"free\", \"plan\": \"Free\", \"focus_group_access_expires_at\": null }",
+        "jsonBody": "={ \"plan_tier\": \"free\", \"focus_group_access_expires_at\": null }",
         "options": {}
       },
       "id": "revert-plan",
