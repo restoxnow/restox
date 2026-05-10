@@ -1,0 +1,240 @@
+{
+  "name": "Restox — Daily Price Refresh",
+  "nodes": [
+    {
+      "id": "pr-0001-4e00-8000-100000000001",
+      "name": "Daily 4AM Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 340],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 4 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pr-0002-4e00-8000-100000000002",
+      "name": "Compute Cutoff Time",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 340],
+      "parameters": {
+        "jsCode": "const cutoff = new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString();\nreturn [{ json: { cutoff } }];"
+      }
+    },
+    {
+      "id": "pr-0003-4e00-8000-100000000003",
+      "name": "Fetch Stale Price Records",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 340],
+      "parameters": {
+        "method": "GET",
+        "url": "https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/price_comparisons",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcHR3dnViZWJ4ampreGt6cXFlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODAxMjIxMCwiZXhwIjoyMDkzNTg4MjEwfQ.gJgRxeX5lIPTwMOecuvDlU8upM945rtfTXxmHyYcezE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZqcHR3dnViZWJ4ampreGt6cXFlIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODAxMjIxMCwiZXhwIjoyMDkzNTg4MjEwfQ.gJgRxeX5lIPTwMOecuvDlU8upM945rtfTXxmHyYcezE"
+            }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "schedule_id" },
+            { "name": "schedule_id", "value": "not.is.null" },
+            { "name": "fetched_at", "value": "=lt.{{ $json.cutoff }}" }
+          ]
+        },
+        "options": { "timeout": 15000 }
+      }
+    },
+    {
+      "id": "pr-0004-4e00-8000-100000000004",
+      "name": "Deduplicate Schedule IDs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 340],
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst unique = [];\nfor (const item of $input.all()) {\n  const sid = item.json.schedule_id;\n  if (sid && !seen.has(sid)) {\n    seen.add(sid);\n    unique.push({ json: { schedule_id: sid } });\n  }\n}\nif (unique.length === 0) {\n  return [{ json: { schedule_id: null, __empty: true } }];\n}\nreturn unique;"
+      }
+    },
+    {
+      "id": "pr-0005-4e00-8000-100000000005",
+      "name": "Init Error Tracker",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 340],
+      "parameters": {
+        "jsCode": "// Pass through all items; attach error counter to first item\nconst items = $input.all();\nif (items.length > 0) {\n  items[0].json.__errorCount = 0;\n}\nreturn items;"
+      }
+    },
+    {
+      "id": "pr-0006-4e00-8000-100000000006",
+      "name": "Loop Schedules",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1340, 340],
+      "parameters": {
+        "batchSize": 5,
+        "options": {}
+      }
+    },
+    {
+      "id": "pr-0007-4e00-8000-100000000007",
+      "name": "Refresh Price",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "https://restox.net/api/price-compare/fetch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Authorization", "value": "Bearer b431e44d01c09348acf88c591ec9d88c759fbac2780a624382e93121b9490ad9" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"schedule_id\": \"{{ $json.schedule_id }}\"\n}",
+        "options": {
+          "timeout": 30000,
+          "response": { "response": { "neverError": true } }
+        }
+      }
+    },
+    {
+      "id": "pr-0008-4e00-8000-100000000008",
+      "name": "Track Refresh Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 260],
+      "parameters": {
+        "jsCode": "// Count any non-2xx or error responses\nconst item = $input.first();\nconst status = item.json.statusCode ?? item.json.$response?.statusCode ?? 200;\nconst isError = status >= 400 || item.json.error;\n\n// Store error count in workflow static data\nconst store = $getWorkflowStaticData('global');\nif (!store.errorCount) store.errorCount = 0;\nif (isError) store.errorCount += 1;\n\nreturn [$input.first()];"
+      }
+    },
+    {
+      "id": "pr-0009-4e00-8000-100000000009",
+      "name": "Wait 1 Second",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1780, 420],
+      "parameters": {
+        "resume": "timeInterval",
+        "unit": "seconds",
+        "value": 1
+      },
+      "webhookId": "pr-wait-between-batches"
+    },
+    {
+      "id": "pr-0010-4e00-8000-100000000010",
+      "name": "Get Error Count",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 340],
+      "parameters": {
+        "jsCode": "const store = $getWorkflowStaticData('global');\nconst count = store.errorCount ?? 0;\nstore.errorCount = 0; // reset for next run\nreturn [{ json: { errorCount: count } }];"
+      }
+    },
+    {
+      "id": "pr-0011-4e00-8000-100000000011",
+      "name": "Too Many Failures?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2220, 340],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.errorCount }}",
+              "rightValue": 5,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "pr-0012-4e00-8000-100000000012",
+      "name": "Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2440, 260],
+      "parameters": {
+        "method": "POST",
+        "url": "REPLACE_WITH_YOUR_SLACK_WEBHOOK_URL",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \":warning: *Restox Price Refresh*: {{ $json.errorCount }} schedule(s) failed to refresh prices in the daily 4 AM run. Check https://restox.net/api/price-compare/fetch for errors.\"\n}",
+        "options": { "timeout": 10000 }
+      }
+    }
+  ],
+  "connections": {
+    "Daily 4AM Schedule": {
+      "main": [[{ "node": "Compute Cutoff Time", "type": "main", "index": 0 }]]
+    },
+    "Compute Cutoff Time": {
+      "main": [[{ "node": "Fetch Stale Price Records", "type": "main", "index": 0 }]]
+    },
+    "Fetch Stale Price Records": {
+      "main": [[{ "node": "Deduplicate Schedule IDs", "type": "main", "index": 0 }]]
+    },
+    "Deduplicate Schedule IDs": {
+      "main": [[{ "node": "Init Error Tracker", "type": "main", "index": 0 }]]
+    },
+    "Init Error Tracker": {
+      "main": [[{ "node": "Loop Schedules", "type": "main", "index": 0 }]]
+    },
+    "Loop Schedules": {
+      "main": [
+        [{ "node": "Refresh Price", "type": "main", "index": 0 }],
+        [{ "node": "Get Error Count", "type": "main", "index": 0 }]
+      ]
+    },
+    "Refresh Price": {
+      "main": [[{ "node": "Track Refresh Result", "type": "main", "index": 0 }]]
+    },
+    "Track Refresh Result": {
+      "main": [[{ "node": "Wait 1 Second", "type": "main", "index": 0 }]]
+    },
+    "Wait 1 Second": {
+      "main": [[{ "node": "Loop Schedules", "type": "main", "index": 0 }]]
+    },
+    "Get Error Count": {
+      "main": [[{ "node": "Too Many Failures?", "type": "main", "index": 0 }]]
+    },
+    "Too Many Failures?": {
+      "main": [
+        [{ "node": "Slack Alert", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

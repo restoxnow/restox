@@ -62,12 +62,21 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
       if (dbError) throw dbError
 
       // Insert schedule — product info stored directly, no product_id FK
-      await supabase.from('purchase_schedules').insert({
+      const { data: schedData } = await supabase.from('purchase_schedules').insert({
         user_id: user.id, product_name: result.name, retailer: result.retailer,
         quantity: 1, frequency_days: frequencyDays,
         status: 'active', ai_managed: false, notification_timing: '24hr',
         confirmation_required: false, notification_channel: 'email',
-      })
+      }).select('id').single()
+
+      // Immediate price fetch in background (fire and forget)
+      if (schedData?.id) {
+        fetch('/api/price-compare/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schedule_id: schedData.id }),
+        }).catch(() => {})
+      }
 
       onAdded(result.name)
       onClose()
@@ -112,12 +121,21 @@ export default function AddProductModal({ onClose, onAdded }: Props) {
       if (dbError) throw dbError
 
       // Insert schedule — product info stored directly, no product_id FK
-      await supabase.from('purchase_schedules').insert({
+      const { data: schedData } = await supabase.from('purchase_schedules').insert({
         user_id: user.id, product_name: parsedName, product_url: taggedUrl,
         quantity: 1, frequency_days: frequencyDays,
         status: 'active', ai_managed: false, notification_timing: '24hr',
         confirmation_required: false, notification_channel: 'email',
-      })
+      }).select('id').single()
+
+      // Immediate price fetch in background (fire and forget)
+      if (schedData?.id) {
+        fetch('/api/price-compare/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schedule_id: schedData.id }),
+        }).catch(() => {})
+      }
 
       onAdded(parsedName)
       onClose()

@@ -26,6 +26,7 @@ interface Product {
   created_at: string
   retailers: { id: string; name: string } | null
   has_schedule: boolean
+  schedule_id: string | null
 }
 
 type FilterTab = 'all' | 'scheduled' | 'unscheduled'
@@ -180,7 +181,7 @@ function DeleteConfirm({ onConfirm, onCancel, loading }: {
 function AddScheduleModal({ product, onClose, onCreated }: {
   product: Product
   onClose: () => void
-  onCreated: (productId: string) => void
+  onCreated: (productId: string, scheduleId?: string | null) => void
 }) {
   const supabase = createSupabaseBrowserClient()
   const [freqDays, setFreqDays]     = useState(30)
@@ -234,20 +235,26 @@ function AddScheduleModal({ product, onClose, onCreated }: {
         notification_channel: 'email',
       }
       console.log('[AddSchedule] inserting:', payload)
-      const { error: err } = await supabase.from('purchase_schedules').insert(payload)
+      const { data: schedData, error: err } = await supabase
+        .from('purchase_schedules')
+        .insert(payload)
+        .select('id')
+        .single()
       if (err) { console.error('[AddSchedule] error:', err); throw err }
 
       // Trigger subscription detection non-blocking
       fetch('/api/schedules/detect-subscriptions', { method: 'POST' }).catch(() => {})
 
-      // Seed initial price data in background (fire and forget)
-      fetch('/api/price-compare', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ product_id: product.id }),
-      }).catch(() => {})
+      // Immediate price fetch in background (fire and forget)
+      if (schedData?.id) {
+        fetch('/api/price-compare/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schedule_id: schedData.id }),
+        }).catch(() => {})
+      }
 
-      onCreated(product.id)
+      onCreated(product.id, schedData?.id ?? null)
       onClose()
     } catch (err: any) {
       setError(err.message)
@@ -378,7 +385,7 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
   idx: number
   onUpdate: (id: string, patch: Partial<Product>) => void
   onDelete: (id: string) => void
-  onScheduleCreated: (productId: string) => void
+  onScheduleCreated: (productId: string, scheduleId?: string | null) => void
 }) {
   const supabase = createSupabaseBrowserClient()
   const [qty, setQty] = useState(product.reorder_quantity)
@@ -528,13 +535,13 @@ function ProductCard({ product, idx, onUpdate, onDelete, onScheduleCreated }: {
         <AddScheduleModal
           product={product}
           onClose={() => setShowAddSchedule(false)}
-          onCreated={onScheduleCreated}
+          onCreated={(pid, sid) => onScheduleCreated(pid, sid)}
         />
       )}
 
       {showPriceCompare && (
         <PriceCompareModal
-          product={product}
+          product={{ ...product, schedule_id: product.schedule_id }}
           onClose={() => setShowPriceCompare(false)}
           onRetailerSwitched={(retailerId, retailerName) => {
             onUpdate(product.id, { retailers: { id: retailerId, name: retailerName } })
@@ -569,21 +576,22 @@ export default function ProductsPage() {
 
     if (!productData) { setLoading(false); return }
 
-    // Fetch which product_ids have schedules
+    // Fetch which product_ids have schedules (include schedule id for price fetch)
     const ids = productData.map(p => p.id)
     const { data: scheduleData } = ids.length
       ? await supabase
           .from('purchase_schedules')
-          .select('product_id')
+          .select('product_id, id')
           .in('product_id', ids)
       : { data: [] }
 
-    const scheduledIds = new Set((scheduleData ?? []).map((s: any) => s.product_id))
+    const scheduleMap = new Map((scheduleData ?? []).map((s: any) => [s.product_id, s.id as string]))
 
     setProducts(
       productData.map(p => ({
         ...(p as any),
-        has_schedule: scheduledIds.has(p.id),
+        has_schedule: scheduleMap.has(p.id),
+        schedule_id: scheduleMap.get(p.id) ?? null,
       })) as Product[]
     )
     setLoading(false)
@@ -599,8 +607,10 @@ export default function ProductsPage() {
     setProducts(prev => prev.filter(p => p.id !== id))
   }, [])
 
-  const handleScheduleCreated = useCallback((productId: string) => {
-    setProducts(prev => prev.map(p => p.id === productId ? { ...p, has_schedule: true } : p))
+  const handleScheduleCreated = useCallback((productId: string, scheduleId?: string | null) => {
+    setProducts(prev => prev.map(p =>
+      p.id === productId ? { ...p, has_schedule: true, schedule_id: scheduleId ?? null } : p
+    ))
   }, [])
 
   // Re-fetch after adding a product via AddProductModal
