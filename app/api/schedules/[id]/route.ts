@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 
 const PATCHABLE = new Set(['monitor_only', 'status', 'frequency_days', 'notification_timing', 'notification_channel'])
 
+const TIMING_TO_HOURS: Record<string, number> = { '6hr': 6, '12hr': 12, '24hr': 24, '48hr': 48 }
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -21,6 +23,12 @@ export async function PATCH(
 
   if (Object.keys(patch).length === 0) {
     return NextResponse.json({ error: 'No patchable fields provided' }, { status: 400 })
+  }
+
+  // Keep pre_order_confirmation_hours in sync with notification_timing
+  if (patch['notification_timing']) {
+    const hours = TIMING_TO_HOURS[patch['notification_timing'] as string]
+    if (hours) patch['pre_order_confirmation_hours'] = hours
   }
 
   const { error } = await supabase

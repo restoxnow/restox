@@ -5,6 +5,7 @@ import Image from 'next/image'
 import {
   Search, ChevronDown, ChevronRight, CheckCircle, X,
   Loader2, AlertTriangle, Link2, Calendar, CheckCircle2, AlertCircle,
+  CreditCard, Info, Shield,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
@@ -34,6 +35,17 @@ interface ConnectedRetailer {
   connection_type: string
   connection_status: string
   created_at: string
+}
+
+interface StoredPaymentMethod {
+  id: string
+  payment_method_id: string
+  last4: string | null
+  brand: string | null
+  expiry_month: number | null
+  expiry_year: number | null
+  is_default: boolean
+  selected_for_auto_order: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -173,7 +185,7 @@ const CONN_TYPE_LABEL: Record<string, string> = {
 }
 
 // ---------------------------------------------------------------------------
-// ConnectedRetailerCard
+// ConnectedRetailerCard — with payment method selector
 // ---------------------------------------------------------------------------
 function ConnectedRetailerCard({
   retailer,
@@ -182,11 +194,56 @@ function ConnectedRetailerCard({
   retailer: ConnectedRetailer
   onDisconnect: (r: ConnectedRetailer) => Promise<void>
 }) {
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [disconnecting, setDisconnecting] = useState(false)
+  const supabase = createSupabaseBrowserClient()
+  const [showConfirm, setShowConfirm]       = useState(false)
+  const [disconnecting, setDisconnecting]   = useState(false)
+  const [showPayment, setShowPayment]       = useState(false)
+  const [methods, setMethods]               = useState<StoredPaymentMethod[]>([])
+  const [loadingMethods, setLoadingMethods] = useState(false)
+  const [selectedId, setSelectedId]         = useState<string | null>(null)
+  const [saving, setSaving]                 = useState(false)
+  const [saveMsg, setSaveMsg]               = useState<string | null>(null)
 
-  const badgeCls = CONN_TYPE_BADGE[retailer.connection_type] ?? CONN_TYPE_BADGE.credentials
-  const badgeLabel = CONN_TYPE_LABEL[retailer.connection_type] ?? retailer.connection_type
+  const badgeCls   = CONN_TYPE_BADGE[retailer.connection_type]   ?? CONN_TYPE_BADGE.credentials
+  const badgeLabel = CONN_TYPE_LABEL[retailer.connection_type]   ?? retailer.connection_type
+
+  const selectedMethod = methods.find(m => m.payment_method_id === selectedId) ?? null
+
+  // Load payment methods on first expand
+  const openPayment = async () => {
+    setShowPayment(v => !v)
+    if (methods.length > 0 || loadingMethods) return
+    setLoadingMethods(true)
+    const { data } = await supabase
+      .from('retailer_payment_methods')
+      .select('id, payment_method_id, last4, brand, expiry_month, expiry_year, is_default, selected_for_auto_order')
+      .eq('retailer_name', retailer.name)
+      .order('is_default', { ascending: false })
+    const rows = (data as StoredPaymentMethod[]) ?? []
+    setMethods(rows)
+    const already = rows.find(m => m.selected_for_auto_order)
+    if (already) setSelectedId(already.payment_method_id)
+    setLoadingMethods(false)
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveMsg(null)
+    const res = await fetch('/api/retailers/payment-methods/select', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ retailer_name: retailer.name, payment_method_id: selectedId }),
+    })
+    setSaving(false)
+    setSaveMsg(res.ok ? 'Saved!' : 'Failed to save — try again')
+    if (res.ok) {
+      setMethods(prev => prev.map(m => ({
+        ...m,
+        selected_for_auto_order: m.payment_method_id === selectedId,
+      })))
+      setTimeout(() => setSaveMsg(null), 2000)
+    }
+  }
 
   const handleConfirm = async () => {
     setDisconnecting(true)
@@ -195,42 +252,169 @@ function ConnectedRetailerCard({
     setShowConfirm(false)
   }
 
-  return (
-    <div className="relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-4 flex items-center gap-3">
-      <ConnectedRetailerLogo name={retailer.name} />
+  const paymentSummary = selectedMethod
+    ? `${selectedMethod.brand ?? 'Card'} ••••${selectedMethod.last4}`
+    : methods.length > 0
+      ? 'No method selected'
+      : 'Confirmation required'
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-rx-navy dark:text-white font-body truncate">
-            {retailer.name}
-          </p>
-          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold font-body ${badgeCls}`}>
-            <Link2 size={9} />
-            {badgeLabel}
-          </span>
+  return (
+    <div className="relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none overflow-hidden">
+      {/* Main row */}
+      <div className="p-4 flex items-center gap-3">
+        <ConnectedRetailerLogo name={retailer.name} />
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-rx-navy dark:text-white font-body truncate">
+              {retailer.name}
+            </p>
+            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold font-body ${badgeCls}`}>
+              <Link2 size={9} />
+              {badgeLabel}
+            </span>
+          </div>
+          <div className="flex items-center gap-3 mt-0.5">
+            <span className="flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400 font-body font-semibold">
+              <CheckCircle size={11} />
+              Connected
+            </span>
+            <span className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 font-body">
+              <Calendar size={10} />
+              {new Date(retailer.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          </div>
         </div>
-        <div className="flex items-center gap-3 mt-0.5">
-          <span className="flex items-center gap-1 text-[11px] text-green-600 dark:text-green-400 font-body font-semibold">
-            <CheckCircle size={11} />
-            Connected
-          </span>
-          <span className="flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500 font-body">
-            <Calendar size={10} />
-            {new Date(retailer.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-          </span>
-        </div>
+
+        <button
+          onClick={() => setShowConfirm(v => !v)}
+          className="shrink-0 px-3 py-1.5 text-xs font-semibold font-body rounded-lg border border-gray-200 dark:border-white/10
+            text-gray-500 dark:text-gray-400 hover:border-red-300 dark:hover:border-red-700/40
+            hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+        >
+          Disconnect
+        </button>
       </div>
 
+      {/* Payment method summary bar */}
       <button
-        onClick={() => setShowConfirm(v => !v)}
-        className="shrink-0 px-3 py-1.5 text-xs font-semibold font-body rounded-lg border border-gray-200 dark:border-white/10
-          text-gray-500 dark:text-gray-400 hover:border-red-300 dark:hover:border-red-700/40
-          hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
+        onClick={openPayment}
+        className="w-full flex items-center gap-2 px-4 py-2.5 border-t border-gray-100 dark:border-white/10
+          bg-gray-50 dark:bg-white/3 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left"
       >
-        Disconnect
+        <CreditCard size={13} className="text-gray-400 dark:text-gray-500 shrink-0" />
+        <span className="text-xs font-body text-gray-500 dark:text-gray-400 flex-1">
+          Auto-order payment:{' '}
+          <span className={`font-semibold ${selectedMethod ? 'text-rx-navy dark:text-white' : 'text-amber-600 dark:text-amber-400'}`}>
+            {paymentSummary}
+          </span>
+        </span>
+        <ChevronDown size={12} className={`text-gray-400 dark:text-gray-500 transition-transform ${showPayment ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Confirmation popover */}
+      {/* Expandable payment section */}
+      {showPayment && (
+        <div className="px-4 pb-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-3">
+          <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 font-body uppercase tracking-wide">
+            Auto-order payment
+          </p>
+
+          {loadingMethods && (
+            <div className="flex items-center gap-2 py-2">
+              <Loader2 size={14} className="animate-spin text-gray-400" />
+              <span className="text-xs text-gray-400 font-body">Loading payment methods…</span>
+            </div>
+          )}
+
+          {!loadingMethods && methods.length === 0 && (
+            <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30">
+              <Info size={14} className="text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 font-body">
+                  Restox will confirm with you before each order
+                </p>
+                <p className="text-[11px] text-blue-600 dark:text-blue-400 font-body mt-0.5 leading-relaxed">
+                  {retailer.name}&apos;s API doesn&apos;t expose saved payment methods yet.
+                  You&apos;ll receive an email confirmation before every automated order.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!loadingMethods && methods.length > 0 && (
+            <div className="space-y-2">
+              {methods.map(m => (
+                <label
+                  key={m.payment_method_id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    selectedId === m.payment_method_id
+                      ? 'border-rx-orange/40 bg-rx-orange-light dark:bg-rx-orange/10'
+                      : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name={`payment-${retailer.id}`}
+                    value={m.payment_method_id}
+                    checked={selectedId === m.payment_method_id}
+                    onChange={() => setSelectedId(m.payment_method_id)}
+                    className="accent-rx-orange"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-rx-navy dark:text-white font-body">
+                      {m.brand ?? 'Card'} ••••{m.last4}
+                      {m.is_default && (
+                        <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/30">
+                          Default
+                        </span>
+                      )}
+                    </p>
+                    {m.expiry_month && m.expiry_year && (
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body mt-0.5">
+                        expires {String(m.expiry_month).padStart(2, '0')}/{m.expiry_year}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              ))}
+
+              <div className="flex items-center gap-3 pt-1">
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-4 py-1.5 bg-rx-orange hover:bg-rx-orange-dark text-white text-xs font-semibold rounded-lg transition-colors font-body disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  {saving ? <Loader2 size={11} className="animate-spin" /> : null}
+                  {saving ? 'Saving…' : 'Save selection'}
+                </button>
+                {saveMsg && (
+                  <span className={`text-xs font-body font-semibold ${saveMsg === 'Saved!' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                    {saveMsg}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Security disclaimers */}
+          <div className="space-y-1 pt-1 border-t border-gray-100 dark:border-white/10">
+            <div className="flex items-start gap-1.5">
+              <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
+                Restox never stores your full card number. Payment is processed directly by {retailer.name}.
+              </p>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
+              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
+                You will always receive a confirmation notification before any order is placed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Disconnect confirmation popover */}
       {showConfirm && (
         <div className="absolute right-4 top-14 z-20 w-72 bg-white dark:bg-[#1a2744] border border-gray-200 dark:border-white/10 rounded-xl shadow-xl p-4">
           <div className="flex items-start gap-2 mb-2">
@@ -310,6 +494,14 @@ export default function RetailersPage() {
         message: `${oauthRetailer ?? 'Retailer'} connected successfully via OAuth!`,
       })
       fetchRetailers()
+      // Non-blocking: sync payment methods for the newly connected retailer
+      if (oauthRetailer) {
+        fetch('/api/retailers/payment-methods/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ retailer_name: oauthRetailer }),
+        }).catch(() => {})
+      }
     } else if (oauthResult === 'error') {
       setOAuthBanner({
         type:    'error',

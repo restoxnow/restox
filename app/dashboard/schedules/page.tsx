@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   CalendarClock, Package, Zap, Mail, MessageSquare, Layers,
-  Pause, Play, Trash2, ChevronDown, AlertTriangle, Eye, X,
+  Pause, Play, Trash2, ChevronDown, AlertTriangle, Eye, X, CreditCard,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
@@ -31,6 +31,11 @@ interface Schedule {
   subscription_confidence: string | null
   subscription_interval_days: number | null
   monitor_only: boolean
+}
+
+interface PaymentLabel {
+  brand: string | null
+  last4: string | null
 }
 
 type FilterTab = 'all' | 'active' | 'paused'
@@ -364,10 +369,12 @@ function ConsolidationPrompt({
 // ---------------------------------------------------------------------------
 function ScheduleCard({
   schedule,
+  paymentLabel,
   onUpdate,
   onDelete,
 }: {
   schedule: Schedule
+  paymentLabel: PaymentLabel | null
   onUpdate: (id: string, patch: Partial<Schedule>) => void
   onDelete: (id: string) => void
 }) {
@@ -459,6 +466,22 @@ function ScheduleCard({
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-rx-navy dark:text-white font-body truncate">{productName}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5">{retailerName}</p>
+          <a
+            href="/dashboard/retailers"
+            className="inline-flex items-center gap-1 mt-1 group"
+            title="Manage payment method"
+          >
+            <CreditCard size={10} className="text-gray-400 dark:text-gray-500 group-hover:text-rx-orange transition-colors" />
+            {paymentLabel?.last4 ? (
+              <span className="text-[11px] text-gray-400 dark:text-gray-500 font-body group-hover:text-rx-orange transition-colors">
+                {paymentLabel.brand ?? 'Card'} ••••{paymentLabel.last4}
+              </span>
+            ) : (
+              <span className="text-[11px] text-amber-600 dark:text-amber-400 font-body font-medium group-hover:text-amber-700 dark:group-hover:text-amber-300 transition-colors">
+                Confirmation required
+              </span>
+            )}
+          </a>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {schedule.ai_managed && (
@@ -632,12 +655,14 @@ export default function SchedulesPage() {
   const [tab, setTab] = useState<FilterTab>('all')
   const [promptRetailer, setPromptRetailer] = useState<'amazon' | 'chewy' | null>(null)
   const [manageLinkRetailer, setManageLinkRetailer] = useState<'amazon' | 'chewy' | null>(null)
+  // retailer name (lowercase) -> selected payment label
+  const [paymentMap, setPaymentMap] = useState<Record<string, PaymentLabel | null>>({})
 
   const fetchSchedules = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoading(false); return }
 
-    const [schedulesRes, userRes] = await Promise.all([
+    const [schedulesRes, userRes, paymentRes] = await Promise.all([
       supabase
         .from('purchase_schedules')
         .select('id, product_name, retailer, frequency_days, status, ai_managed, notification_timing, notification_channel, created_at, monthly_forecast, subscription_detected, subscription_confidence, subscription_interval_days, monitor_only')
@@ -648,10 +673,23 @@ export default function SchedulesPage() {
         .select('subscription_prompt_dismissed')
         .eq('id', user.id)
         .single(),
+      // Two-query pattern: fetch selected payment methods separately
+      supabase
+        .from('retailer_payment_methods')
+        .select('retailer_name, brand, last4')
+        .eq('user_id', user.id)
+        .eq('selected_for_auto_order', true),
     ])
 
     const rows = (schedulesRes.data as Schedule[]) ?? []
     setSchedules(rows)
+
+    // Build retailer -> payment label map
+    const pm: Record<string, PaymentLabel | null> = {}
+    for (const p of (paymentRes.data ?? []) as { retailer_name: string; brand: string | null; last4: string | null }[]) {
+      pm[p.retailer_name.toLowerCase()] = { brand: p.brand, last4: p.last4 }
+    }
+    setPaymentMap(pm)
     setLoading(false)
 
     // Determine which consolidation prompt to show
@@ -782,6 +820,7 @@ export default function SchedulesPage() {
             <ScheduleCard
               key={s.id}
               schedule={s}
+              paymentLabel={paymentMap[(s.retailer ?? '').toLowerCase()] ?? null}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
             />
