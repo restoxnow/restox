@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
       .single(),
     supabase
       .from('purchase_schedules')
-      .select('frequency, status')
+      .select('frequency_days, status')
       .eq('product_id', product_id)
       .eq('user_id', user.id)
       .eq('status', 'active')
@@ -105,7 +105,8 @@ export async function POST(req: NextRequest) {
   const monthName = now.toLocaleString('en-US', { month: 'long' })
   const householdSize = userProfile?.household_size ?? 2
   const planTier = userProfile?.plan_tier ?? 'free'
-  const frequency = schedule?.frequency ?? 'monthly'
+  const freqDays = schedule?.frequency_days ?? 30
+  const frequency = freqDays <= 7 ? 'weekly' : freqDays <= 14 ? 'bi-weekly' : freqDays <= 31 ? 'monthly' : 'quarterly'
   const isBusiness = planTier === 'business'
 
   // Summarize order history for context
