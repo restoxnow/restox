@@ -17,6 +17,34 @@ const SENDGRID_URL = 'https://api.sendgrid.com/v3/mail/send'
 const FROM_EMAIL   = 'hello@restox.net'
 const BASE_URL     = process.env.NEXT_PUBLIC_APP_URL ?? 'https://restox.net'
 
+async function logError(opts: {
+  userId: string | null
+  eventType: string
+  errorMessage: string
+  metadata?: Record<string, unknown>
+}) {
+  try {
+    await adminSupabase.from('error_logs').insert({
+      user_id:       opts.userId,
+      event_type:    opts.eventType,
+      error_message: opts.errorMessage,
+      metadata:      opts.metadata ?? null,
+    })
+  } catch { /* logging must never block the main flow */ }
+}
+
+async function sendSlackAlert(message: string) {
+  const url = process.env.SLACK_WEBHOOK_URL
+  if (!url) return
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: message }),
+    })
+  } catch { /* non-fatal */ }
+}
+
 async function sendEmail(to: string, subject: string, html: string) {
   if (!process.env.SENDGRID_API_KEY) return
   await fetch(SENDGRID_URL, {
@@ -225,12 +253,60 @@ export async function POST(request: Request) {
         break
       }
 
-      case 'invoice.paid':
-      case 'payment_intent.succeeded': {
-        const obj = event.data.object as Stripe.Invoice | Stripe.PaymentIntent
-        const customerId = typeof obj.customer === 'string' ? obj.customer : (obj.customer as Stripe.Customer | null)?.id
+      case 'invoice.paid': {
+        const invoice    = event.data.object as Stripe.Invoice
+        const customerId = typeof invoice.customer === 'string' ? invoice.customer : (invoice.customer as Stripe.Customer | null)?.id
         if (!customerId) break
-        // Only restore if there was a failure on record
+
+        const user = await getUserByCustomerId(customerId)
+
+        if (!user) {
+          // Orphaned subscription — no matching user in public.users
+          // Cancel immediately and refund the latest charge
+          try {
+            const stripeClient = getStripeClient()
+            const subs = await stripeClient.subscriptions.list({ customer: customerId, status: 'active', limit: 5 })
+            await Promise.all(subs.data.map(sub => stripeClient.subscriptions.cancel(sub.id)))
+
+            // Find the default payment intent for this invoice and refund it
+            const payments = await stripeClient.invoicePayments.list({ invoice: invoice.id })
+            const defaultPayment = payments.data.find(p => p.is_default && p.payment?.type === 'payment_intent')
+            const piId = defaultPayment?.payment?.payment_intent
+            const paymentIntentId = typeof piId === 'string' ? piId : typeof piId === 'object' && piId ? piId.id : null
+            if (paymentIntentId) {
+              await stripeClient.refunds.create({ payment_intent: paymentIntentId })
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            console.error('Orphaned sub cleanup failed:', msg)
+          }
+
+          await logError({
+            userId: null,
+            eventType: 'orphaned_stripe_subscription',
+            errorMessage: 'invoice.paid received for a Stripe customer with no matching user in public.users',
+            metadata: { stripe_customer_id: customerId, invoice_id: invoice.id },
+          })
+          await sendSlackAlert(
+            `:rotating_light: *Orphaned Stripe subscription detected*\n` +
+            `• Stripe customer: \`${customerId}\`\n` +
+            `• Invoice: \`${invoice.id}\`\n` +
+            `Subscription cancelled and charge refunded automatically. Verify in Stripe dashboard.`,
+          )
+          break
+        }
+
+        // Normal recovery path
+        if (user.previous_plan_tier) {
+          await handlePaymentRecovered(customerId)
+        }
+        break
+      }
+
+      case 'payment_intent.succeeded': {
+        const pi         = event.data.object as Stripe.PaymentIntent
+        const customerId = typeof pi.customer === 'string' ? pi.customer : (pi.customer as Stripe.Customer | null)?.id
+        if (!customerId) break
         const user = await getUserByCustomerId(customerId)
         if (user?.previous_plan_tier) {
           await handlePaymentRecovered(customerId)
