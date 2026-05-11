@@ -29,6 +29,7 @@ async function sendAdminEmail(subject: string, body: string): Promise<void> {
 
 export type AdminNotifyPayload =
   | { type: 'retailer_request'; userEmail: string; retailerName: string; websiteUrl?: string | null; reason?: string | null }
+  | { type: 'waitlist_signup';  email: string; name: string; userType: string }
   | { type: 'feedback';         userEmail: string; category: string; message: string; pageUrl?: string | null }
   | { type: 'new_user';         email: string; totalUsers: number }
 
