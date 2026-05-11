@@ -116,7 +116,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     displayName:       'Kroger',
     authUrl:           'https://api-ce.kroger.com/v1/connect/oauth2/authorize',
     tokenUrl:          'https://api-ce.kroger.com/v1/connect/oauth2/token',
-    scopes:            ['cart.basic:write', 'profile.compact'],
+    scopes:            ['cart.basic:write'],
     supportsPKCE:      true,
     tokenAuthMethod:   'basic',
     requiresApproval:  true,
