@@ -1,7 +1,17 @@
 'use client'
 import { useEffect, useRef } from 'react'
 
-const features = [
+const features: {
+  id: string
+  title: string
+  tier?: string
+  description: string
+  gradient: string
+  iconBg: string
+  iconColor: string
+  size: string
+  icon: React.ReactNode
+}[] = [
   {
     id: 'dashboard',
     title: 'One Dashboard. Every Retailer.',
@@ -20,6 +30,7 @@ const features = [
   {
     id: 'ai-timing',
     title: 'AI That Knows When You\'ll Run Out',
+    tier: 'Consumer+',
     description:
       'Restox learns your consumption patterns and predicts exactly when to reorder — before you run out. No more last-minute panic purchases or forgotten subscriptions.',
     gradient: 'from-rose-500 to-pink-400',
@@ -35,6 +46,7 @@ const features = [
   {
     id: 'spend-intel',
     title: 'Discover What You\'re Already Buying',
+    tier: 'Professional+',
     description:
       'Our AI scans your purchase history to surface products you buy repeatedly but haven\'t automated yet. Turn months of manual reordering into a single setup session.',
     gradient: 'from-amber-500 to-yellow-400',
@@ -155,6 +167,11 @@ export default function Features() {
                 <div className={`inline-flex w-14 h-14 rounded-2xl items-center justify-center mb-5 ${feature.iconBg} ${feature.iconColor}`}>
                   {feature.icon}
                 </div>
+                {feature.tier && (
+                  <span className="inline-block mb-3 px-3 py-1 rounded-full bg-orange-100 text-orange-600 text-xs font-heading font-bold uppercase tracking-wide">
+                    {feature.tier}
+                  </span>
+                )}
                 <h3 className="font-heading font-extrabold text-xl text-brand-dark mb-3 leading-tight">
                   {feature.title}
                 </h3>

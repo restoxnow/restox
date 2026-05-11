@@ -1,45 +1,42 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 
+type PlanFeatureValue = boolean | string
+
 type Plan = {
   name: string
   badge?: string
-  price: string
-  annualPrice?: string
-  annualPeriod?: string
-  period: string
+  monthlyPrice: string
+  annualMonthly?: string
+  annualTotal?: string
   retailers: string
   schedules: string
   features: string[]
   cta: string
   ctaHref: string
   highlight?: boolean
-  gradient?: string
 }
 
 const plans: Plan[] = [
   {
     name: 'Free',
     badge: 'Start Here',
-    price: '$0',
-    period: '/month',
+    monthlyPrice: '$0',
     retailers: '3 retailers',
     schedules: '3 schedules',
     features: [
-      'Manual ordering only',
-      'Basic dashboard',
-      'Contextual ads',
+      'Subscription detection',
+      'Manual ordering',
+      'Ad-supported',
     ],
-    cta: 'Join Waitlist',
-    ctaHref: '#waitlist',
+    cta: 'Get started free',
+    ctaHref: '/auth/signup',
   },
   {
     name: 'Consumer',
-    badge: 'Most Popular',
-    price: '$9.99',
-    period: '/month',
-    annualPrice: '$89',
-    annualPeriod: '/year',
+    monthlyPrice: '$9.99',
+    annualMonthly: '$8.25',
+    annualTotal: '$99',
     retailers: '5 retailers',
     schedules: '10 schedules',
     features: [
@@ -47,69 +44,72 @@ const plans: Plan[] = [
       'AI Reorder Timing',
       'Full automation',
       'Ad-free experience',
-      'Email notifications',
     ],
-    cta: 'Join Waitlist',
-    ctaHref: '#waitlist',
-    highlight: true,
-    gradient: 'from-orange-500 to-rose-500',
+    cta: 'Get started',
+    ctaHref: '/auth/signup',
   },
   {
     name: 'Professional',
-    price: '$29',
-    period: '/month',
-    annualPrice: '$269',
-    annualPeriod: '/year',
+    badge: 'Most Popular',
+    monthlyPrice: '$29',
+    annualMonthly: '$24.17',
+    annualTotal: '$290',
     retailers: '10 retailers',
     schedules: '30 schedules',
     features: [
       'Everything in Consumer',
       'Spend Intelligence',
       'Order History AI',
-      'Priority support',
     ],
-    cta: 'Join Waitlist',
-    ctaHref: '#waitlist',
+    cta: 'Get started',
+    ctaHref: '/auth/signup',
+    highlight: true,
   },
   {
     name: 'Business',
-    price: '$79',
-    period: '/month',
-    annualPrice: '$749',
-    annualPeriod: '/year',
+    monthlyPrice: '$79',
+    annualMonthly: '$65.83',
+    annualTotal: '$790',
     retailers: 'Unlimited retailers',
     schedules: 'Unlimited schedules',
     features: [
       'Everything in Professional',
       'Seasonal Forecasting',
       'Advanced Analytics',
-      'Multi-user seats',
-      'Approval workflows',
-      'Priority support',
+      'Multi-user / Team',
+      'Priority Support',
     ],
-    cta: 'Contact Us',
-    ctaHref: 'mailto:hello@restox.net',
+    cta: 'Get started',
+    ctaHref: '/auth/signup',
   },
 ]
 
-// Feature comparison table rows
-const FEATURE_TABLE = [
-  { label: 'Retailers',                  free: '3',   consumer: '5',   professional: '10',  business: 'Unlimited' },
-  { label: 'Schedules',                  free: '3',   consumer: '10',  professional: '30',  business: 'Unlimited' },
-  { label: 'Price Compare',             free: false, consumer: true,  professional: true,  business: true },
-  { label: 'AI Reorder Timing',         free: false, consumer: true,  professional: true,  business: true },
-  { label: 'Spend Intelligence',        free: false, consumer: false, professional: true,  business: true },
-  { label: 'Order History AI',          free: false, consumer: false, professional: true,  business: true },
-  { label: 'Seasonal Forecasting',      free: false, consumer: false, professional: false, business: true },
-  { label: 'Advanced Analytics',        free: false, consumer: false, professional: false, business: true },
-  { label: 'Multi-user / Team',         free: false, consumer: false, professional: false, business: true },
-  { label: 'Priority Support',          free: false, consumer: false, professional: false, business: true },
-  { label: 'Ad-free',                   free: false, consumer: true,  professional: true,  business: true },
+const FEATURE_TABLE: Array<{
+  label: string
+  free: PlanFeatureValue
+  consumer: PlanFeatureValue
+  professional: PlanFeatureValue
+  business: PlanFeatureValue
+}> = [
+  { label: 'Retailers',              free: '3',          consumer: '5',          professional: '10',  business: 'Unlimited' },
+  { label: 'Schedules',              free: '3',          consumer: '10',         professional: '30',  business: 'Unlimited' },
+  { label: 'Subscription Detection', free: true,         consumer: true,         professional: true,  business: true },
+  { label: 'Price Compare',          free: false,        consumer: true,         professional: true,  business: true },
+  { label: 'AI Reorder Timing',      free: false,        consumer: true,         professional: true,  business: true },
+  { label: 'Order History AI',       free: 'Detection',  consumer: 'Detection',  professional: true,  business: true },
+  { label: 'Spend Intelligence',     free: false,        consumer: false,        professional: true,  business: true },
+  { label: 'Seasonal Forecast',      free: false,        consumer: false,        professional: false, business: true },
+  { label: 'Multi-user / Team',      free: false,        consumer: false,        professional: false, business: true },
+  { label: 'Advanced Analytics',     free: false,        consumer: false,        professional: false, business: true },
+  { label: 'Priority Support',       free: false,        consumer: false,        professional: false, business: true },
+  { label: 'Ad-free experience',     free: false,        consumer: true,         professional: true,  business: true },
 ]
+
+const GREEN = '#1D9E75'
 
 function Check() {
   return (
-    <svg className="w-4 h-4 text-orange-500 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+    <svg className="w-4 h-4 mx-auto" fill="currentColor" viewBox="0 0 20 20" style={{ color: GREEN }}>
       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
     </svg>
   )
@@ -117,6 +117,14 @@ function Check() {
 
 function Dash() {
   return <span className="text-gray-300 block text-center">—</span>
+}
+
+function DetectionOnly() {
+  return (
+    <span className="inline-block text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+      Detection only
+    </span>
+  )
 }
 
 export default function Pricing() {
@@ -154,7 +162,7 @@ export default function Pricing() {
         <div className="text-center mb-12">
           <p className="text-orange-500 font-heading font-bold text-sm uppercase tracking-widest mb-3">Pricing</p>
           <h2 className="section-heading mb-4">Start free. Upgrade when you&apos;re ready.</h2>
-          <p className="section-subheading max-w-md mx-auto mb-8">No credit card required to join the waitlist.</p>
+          <p className="section-subheading max-w-md mx-auto mb-8">No credit card required. Cancel anytime.</p>
 
           {/* Billing toggle */}
           <div className="inline-flex items-center gap-1 p-1 rounded-full bg-white border border-brand-border shadow-sm">
@@ -178,7 +186,7 @@ export default function Pricing() {
             >
               Annual
               <span className={`text-xs px-2 py-0.5 rounded-full font-body ${billing === 'annual' ? 'bg-white/20 text-white' : 'bg-green-100 text-green-700'}`}>
-                Save 25%
+                Save 17%
               </span>
             </button>
           </div>
@@ -219,11 +227,7 @@ export default function Pricing() {
 
               <div className="p-7 flex flex-col h-full">
                 {/* Plan name */}
-                <h3
-                  className={`font-heading font-extrabold text-xl mb-1 ${
-                    plan.highlight ? 'text-white' : 'text-brand-dark'
-                  }`}
-                >
+                <h3 className={`font-heading font-extrabold text-xl mb-1 ${plan.highlight ? 'text-white' : 'text-brand-dark'}`}>
                   {plan.name}
                 </h3>
 
@@ -233,27 +237,30 @@ export default function Pricing() {
                 </p>
 
                 {/* Price */}
-                <div className="mt-2 mb-6">
+                <div className="mt-2 mb-4">
                   <div className="flex items-end gap-1">
-                    <span
-                      className={`font-heading font-extrabold text-4xl leading-none ${
-                        plan.highlight ? 'text-white' : 'text-brand-dark'
-                      }`}
-                    >
-                      {billing === 'annual' && plan.annualPrice ? plan.annualPrice : plan.price}
+                    <span className={`font-heading font-extrabold text-4xl leading-none ${plan.highlight ? 'text-white' : 'text-brand-dark'}`}>
+                      {billing === 'annual' && plan.annualMonthly ? plan.annualMonthly : plan.monthlyPrice}
                     </span>
-                    <span
-                      className={`font-body text-sm mb-1 ${
-                        plan.highlight ? 'text-white/70' : 'text-brand-light'
-                      }`}
-                    >
-                      {billing === 'annual' && plan.annualPeriod ? plan.annualPeriod : plan.period}
+                    <span className={`font-body text-sm mb-1 ${plan.highlight ? 'text-white/70' : 'text-brand-light'}`}>
+                      /mo
                     </span>
                   </div>
-                  {billing === 'annual' && plan.annualPrice && (
+                  {billing === 'annual' && plan.annualTotal ? (
                     <p className={`text-xs mt-1 font-body ${plan.highlight ? 'text-white/60' : 'text-brand-light'}`}>
-                      Billed annually
+                      {plan.annualTotal}/yr billed annually
                     </p>
+                  ) : (
+                    <p className={`text-xs mt-1 font-body ${plan.highlight ? 'text-white/60' : 'text-brand-light'}`}>
+                      {plan.name === 'Free' ? 'Free forever' : 'billed monthly'}
+                    </p>
+                  )}
+                  {billing === 'annual' && plan.annualTotal && (
+                    <span className={`inline-block mt-2 text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                      plan.highlight ? 'bg-white/25 text-white' : 'bg-green-100 text-green-700'
+                    }`}>
+                      2 months free
+                    </span>
                   )}
                 </div>
 
@@ -262,17 +269,14 @@ export default function Pricing() {
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex items-start gap-2.5">
                       <svg
-                        className={`w-4 h-4 flex-shrink-0 mt-0.5 ${plan.highlight ? 'text-white' : 'text-orange-500'}`}
+                        className={`w-4 h-4 flex-shrink-0 mt-0.5 ${plan.highlight ? 'text-white' : ''}`}
+                        style={plan.highlight ? undefined : { color: GREEN }}
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span
-                        className={`font-body text-sm leading-relaxed ${
-                          plan.highlight ? 'text-white/90' : 'text-brand-mid'
-                        }`}
-                      >
+                      <span className={`font-body text-sm leading-relaxed ${plan.highlight ? 'text-white/90' : 'text-brand-mid'}`}>
                         {feature}
                       </span>
                     </li>
@@ -301,7 +305,7 @@ export default function Pricing() {
             onClick={() => setShowTable(t => !t)}
             className="text-sm font-semibold text-brand-mid hover:text-orange-500 transition-colors font-body"
           >
-            {showTable ? 'Hide' : 'Compare all features'} ↕
+            {showTable ? 'Hide comparison' : 'Compare all features'} ↕
           </button>
         </div>
 
@@ -321,10 +325,12 @@ export default function Pricing() {
                   <tr key={row.label} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50/60'}>
                     <td className="px-5 py-3 text-brand-mid font-body">{row.label}</td>
                     {(['free', 'consumer', 'professional', 'business'] as const).map(tier => (
-                      <td key={tier} className="px-4 py-3 text-center font-body text-brand-mid">
+                      <td key={tier} className="px-4 py-3 text-center font-body">
                         {typeof row[tier] === 'boolean'
                           ? row[tier] ? <Check /> : <Dash />
-                          : <span className="text-xs font-semibold">{row[tier]}</span>
+                          : row[tier] === 'Detection'
+                            ? <DetectionOnly />
+                            : <span className="text-xs font-semibold text-brand-mid">{row[tier]}</span>
                         }
                       </td>
                     ))}
