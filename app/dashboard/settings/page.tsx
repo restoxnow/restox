@@ -665,10 +665,19 @@ function SettingsContent() {
                   })}
                 </div>
 
-                <p className="text-xs text-gray-400 dark:text-gray-500 font-body text-center">
-                  Manage payment methods and invoices at{' '}
-                  <a href="/dashboard/settings/billing" className="text-rx-orange hover:underline">your billing page</a>
-                </p>
+                {currentPlan !== 'free' && (
+                  <button
+                    onClick={async () => {
+                      const res = await fetch('/api/stripe/billing-portal', { method: 'POST' })
+                      const json = await res.json()
+                      if (json.url) window.location.href = json.url
+                      else setToast('Could not open Stripe portal. Please try again.')
+                    }}
+                    className="w-full py-2 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 text-xs font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-body"
+                  >
+                    Manage Stripe subscription &amp; invoices
+                  </button>
+                )}
               </div>
 
               {/* Focus group code redemption */}
