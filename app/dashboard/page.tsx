@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   Clock, Store, Package, Plus, CalendarClock, Sparkles,
-  CheckCircle, SkipForward, PauseCircle, ChevronRight,
+  CheckCircle, SkipForward, PauseCircle, ChevronRight, Puzzle, X,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import AdSlot from '@/components/dashboard/AdSlot'
+import { useExtensionDetected } from '@/hooks/useExtensionDetected'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,11 +99,21 @@ export default function DashboardPage() {
   const [loadingSchedules, setLoadingSchedules] = useState(true)
 
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [nudgeDismissed, setNudgeDismissed] = useState(false)
+  const extensionDetected = useExtensionDetected()
 
   // ---- fetch stats (parallel) --------------------------------------------
   const fetchStats = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setLoadingStats(false); return }
+
+    // Load nudge dismissal state
+    const { data: userData } = await supabase
+      .from('users')
+      .select('extension_nudge_dismissed_at')
+      .eq('id', user.id)
+      .single()
+    if ((userData as any)?.extension_nudge_dismissed_at) setNudgeDismissed(true)
 
     // Use GET (no head:true) — HEAD requests return 400 on tables downstream
     // of an ambiguous FK chain in PostgREST.
@@ -160,6 +171,12 @@ export default function DashboardPage() {
     fetchStats()
     fetchSchedules()
   }, [fetchStats, fetchSchedules])
+
+  // ---- extension nudge dismiss -------------------------------------------
+  const handleDismissNudge = useCallback(async () => {
+    setNudgeDismissed(true)
+    fetch('/api/user/dismiss-extension-nudge', { method: 'POST' }).catch(() => {})
+  }, [])
 
   // ---- action buttons ----------------------------------------------------
   const handleAction = useCallback(async (
@@ -262,6 +279,37 @@ export default function DashboardPage() {
 
       {/* ---- Ad: banner between stats and upcoming orders ---- */}
       <AdSlot slot="dashboard-home-banner" format="banner" className="w-full" />
+
+      {/* ---- Extension nudge card ---- */}
+      {!nudgeDismissed && extensionDetected === false && (stats?.retailers ?? 0) >= 1 && (
+        <div className="flex items-start gap-4 px-5 py-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/30">
+          <div className="w-9 h-9 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0 mt-0.5">
+            <Puzzle size={16} className="text-purple-600 dark:text-purple-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-heading font-semibold text-rx-navy dark:text-white">
+              Add products 10x faster with the Restox extension
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">
+              Browse any supported retailer and click "Add to Restox" — no copy-pasting needed.
+            </p>
+            <a
+              href="https://chrome.google.com/webstore/detail/restox"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block mt-3 px-4 py-2 bg-rx-orange hover:bg-rx-orange-dark text-white text-xs font-semibold rounded-xl transition-colors font-body"
+            >
+              Install Extension
+            </a>
+          </div>
+          <button
+            onClick={handleDismissNudge}
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {/* ---- Upcoming orders ---- */}
       <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none">

@@ -5,9 +5,10 @@ import Image from 'next/image'
 import {
   Search, ChevronDown, ChevronRight, CheckCircle, X,
   Loader2, AlertTriangle, Link2, Calendar, CheckCircle2, AlertCircle,
-  CreditCard, Info, Shield, PauseCircle, Store,
+  CreditCard, Info, Shield, PauseCircle, Store, Puzzle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { useExtensionDetected } from '@/hooks/useExtensionDetected'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
 import RequestRetailerModal from '@/components/dashboard/RequestRetailerModal'
 import UpgradePromptModal from '@/components/dashboard/UpgradePromptModal'
@@ -490,6 +491,8 @@ export default function RetailersPage() {
     () => Object.fromEntries(CATEGORIES.map(c => [c.id, true]))
   )
   const [oauthBanner, setOAuthBanner] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [extBannerDismissed, setExtBannerDismissed] = useState(false)
+  const extensionDetected = useExtensionDetected()
 
   // ── Fetch connected retailers from DB ────────────────────────────────────
   const fetchRetailers = useCallback(async () => {
@@ -611,6 +614,51 @@ export default function RetailersPage() {
             className="shrink-0 text-current opacity-50 hover:opacity-100 transition-opacity"
           >
             <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Extension banner ────────────────────────────────────────────── */}
+      {extensionDetected === true && (
+        <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/40">
+          <CheckCircle size={14} className="text-green-500 dark:text-green-400 shrink-0" />
+          <p className="text-xs font-semibold text-green-700 dark:text-green-300 font-body">Extension installed</p>
+        </div>
+      )}
+      {extensionDetected === false && !extBannerDismissed && (
+        <div className="flex items-start gap-4 px-5 py-4 rounded-xl bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800/30">
+          <div className="w-9 h-9 rounded-lg bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center shrink-0 mt-0.5">
+            <Puzzle size={16} className="text-purple-600 dark:text-purple-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-heading font-semibold text-rx-navy dark:text-white">
+              Get Restox on any retailer
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">
+              The browser extension lets you add products from any supported retailer with one click.
+            </p>
+            <div className="flex items-center gap-4 mt-3">
+              <a
+                href="https://chrome.google.com/webstore/detail/restox"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-rx-orange hover:bg-rx-orange-dark text-white text-xs font-semibold rounded-xl transition-colors font-body"
+              >
+                Install Chrome Extension
+              </a>
+              <button
+                onClick={() => setExtBannerDismissed(true)}
+                className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 font-body transition-colors"
+              >
+                Already installed? Refresh the page
+              </button>
+            </div>
+          </div>
+          <button
+            onClick={() => setExtBannerDismissed(true)}
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors shrink-0"
+          >
+            <X size={15} />
           </button>
         </div>
       )}

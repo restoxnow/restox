@@ -7,6 +7,7 @@ import { User, Bell, AlertTriangle, CreditCard, Store, Shield, Palette, Sun, Moo
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useUserTier } from '@/contexts/UserContext'
 import DeleteAccountModal from '@/components/dashboard/DeleteAccountModal'
+import OnboardingChecklist from '@/components/dashboard/OnboardingChecklist'
 
 const SECTIONS = [
   { id: 'profile',       label: 'Account & Profile',     icon: User },
@@ -85,6 +86,9 @@ function SettingsContent() {
   const supabase = createSupabaseBrowserClient()
   const { isBusinessOnly, bypassGates } = useUserTier()
 
+  // Onboarding checklist
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false)
+
   // Nudge email preference
   const [nudgeEmailUnsubscribed, setNudgeEmailUnsubscribed] = useState(false)
 
@@ -128,7 +132,7 @@ function SettingsContent() {
       setEmail(user.email ?? '')
       const { data } = await supabase
         .from('users')
-        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at, nudge_email_unsubscribed, payment_failed_at, previous_plan_tier')
+        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at, nudge_email_unsubscribed, payment_failed_at, previous_plan_tier, onboarding_dismissed_at')
         .eq('id', user.id)
         .single()
       if (data) {
@@ -136,6 +140,7 @@ function SettingsContent() {
         setCurrentPlan((data.plan_tier as string | null) ?? 'free')
         setFocusGroupExpiry((data.focus_group_access_expires_at as string | null) ?? null)
         setNudgeEmailUnsubscribed((data.nudge_email_unsubscribed as boolean | null) ?? false)
+        setOnboardingDismissed(!!(data as any).onboarding_dismissed_at)
         setPaymentFailedAt((data.payment_failed_at as string | null) ?? null)
         setPreviousPlanTier((data.previous_plan_tier as string | null) ?? null)
         setHouseholdSize(String(data.household_size ?? 1))
@@ -281,16 +286,8 @@ function SettingsContent() {
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-body">Manage your account, billing, and preferences</p>
       </div>
 
-      {showWelcome && (
-        <div className="bg-rx-orange-light dark:bg-rx-orange/10 border border-rx-orange/20 rounded-xl p-4 flex items-start gap-3">
-          <PartyPopper size={18} className="text-rx-orange mt-0.5 shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">Welcome to Restox!</p>
-            <p className="text-xs text-gray-600 dark:text-gray-400 font-body mt-0.5">
-              Complete your profile to get started — just add your name and household size.
-            </p>
-          </div>
-        </div>
+      {showWelcome && !onboardingDismissed && (
+        <OnboardingChecklist onDismiss={() => setOnboardingDismissed(true)} />
       )}
 
       <div className="flex flex-col md:flex-row gap-6 items-start">

@@ -8,6 +8,9 @@
 (function () {
   'use strict';
 
+  // Signal extension presence — web app checks for this attribute
+  document.documentElement.setAttribute('data-restox-ext', '1');
+
   var API_URL = '/api/auth/token';
   var TOAST_ID = 'restox-ext-toast';
 
