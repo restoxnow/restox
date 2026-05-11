@@ -614,7 +614,7 @@ function SettingsContent() {
                     return (
                       <div
                         key={plan.id}
-                        className={`rounded-xl border-2 p-4 transition-colors
+                        className={`flex flex-col rounded-xl border-2 p-4 transition-colors
                           ${isCurrent
                             ? 'border-rx-orange bg-rx-orange-light dark:bg-rx-orange/10'
                             : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
@@ -643,23 +643,25 @@ function SettingsContent() {
                             <li key={f} className="text-xs text-gray-500 dark:text-gray-400 font-body">· {f}</li>
                           ))}
                         </ul>
-                        {!isCurrent && isUpgrade && (
-                          <button
-                            onClick={() => handleUpgrade(plan.id)}
-                            disabled={upgrading === plan.id}
-                            className="mt-3 w-full py-1.5 bg-rx-orange text-white text-xs font-bold rounded-lg hover:bg-rx-orange-dark transition-colors font-body flex items-center justify-center gap-1 disabled:opacity-60"
-                          >
-                            {upgrading === plan.id ? <Loader2 size={12} className="animate-spin" /> : 'Upgrade'}
-                          </button>
-                        )}
-                        {!isCurrent && !isUpgrade && plan.id !== 'free' && (
-                          <a
-                            href="/dashboard/settings/billing"
-                            className="mt-3 block w-full py-1.5 text-center border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 text-xs font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-body"
-                          >
-                            Downgrade
-                          </a>
-                        )}
+                        <div className="mt-auto pt-3">
+                          {!isCurrent && isUpgrade && (
+                            <button
+                              onClick={() => handleUpgrade(plan.id)}
+                              disabled={upgrading === plan.id}
+                              className="w-full py-1.5 bg-rx-orange text-white text-xs font-bold rounded-lg hover:bg-rx-orange-dark transition-colors font-body flex items-center justify-center gap-1 disabled:opacity-60"
+                            >
+                              {upgrading === plan.id ? <Loader2 size={12} className="animate-spin" /> : 'Upgrade'}
+                            </button>
+                          )}
+                          {!isCurrent && !isUpgrade && plan.id !== 'free' && (
+                            <a
+                              href="/dashboard/settings/billing"
+                              className="block w-full py-1.5 text-center border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 text-xs font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-body"
+                            >
+                              Downgrade
+                            </a>
+                          )}
+                        </div>
                       </div>
                     )
                   })}
