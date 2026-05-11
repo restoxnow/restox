@@ -45,21 +45,6 @@ export async function GET(request: NextRequest) {
       const isNewUser = Date.now() - createdMs < 2 * 60 * 1000
 
       if (isNewUser) {
-        // Fire-and-forget new user alert with total user count
-        ;(async () => {
-          try {
-            const { count } = await adminSupabase()
-              .from('users')
-              .select('id', { count: 'exact', head: true })
-            await notifyAdmin({
-              type: 'new_user',
-              email: user.email ?? '',
-              totalUsers: count ?? 0,
-            })
-          } catch (err) {
-            console.warn('[auth/callback] notify error:', err)
-          }
-        })()
 
         return NextResponse.redirect(
           `${origin}/dashboard/settings?tab=profile&welcome=true`
