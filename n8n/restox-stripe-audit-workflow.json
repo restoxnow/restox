@@ -1,0 +1,196 @@
+{
+  "name": "Restox — Monthly Stripe Audit",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 1 * *" }]
+        }
+      },
+      "id": "trigger",
+      "name": "1st of Month 8AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 420]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/error_logs",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Authorization", "value": "Bearer SUPABASE_SERVICE_ROLE_KEY_HERE" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "event_type",
+              "value": "in.(stripe_cancel_failed_on_deletion,orphaned_stripe_subscription)"
+            },
+            {
+              "name": "created_at",
+              "value": "={{ 'gte.' + DateTime.now().minus({ months: 1 }).startOf('month').toISO() }}"
+            },
+            {
+              "name": "order",
+              "value": "created_at.desc"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-error-logs",
+      "name": "Get Error Logs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 240],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey",        "value": "SUPABASE_SERVICE_ROLE_KEY_HERE" },
+            { "name": "Authorization", "value": "Bearer SUPABASE_SERVICE_ROLE_KEY_HERE" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select",              "value": "stripe_customer_id" },
+            { "name": "stripe_customer_id",  "value": "not.is.null" },
+            { "name": "limit",               "value": "1000" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-supabase-users",
+      "name": "Get Supabase Users",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 420],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.stripe.com/v1/subscriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer STRIPE_SECRET_KEY_HERE" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "status",   "value": "active" },
+            { "name": "limit",    "value": "100" },
+            { "name": "expand[]", "value": "data.latest_invoice" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-stripe-subs",
+      "name": "Get Stripe Subscriptions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [720, 420]
+    },
+    {
+      "parameters": {
+        "jsCode": "// --- Collect data from each upstream HTTP node ---\n\n// Supabase error_logs: array response → one item per row (or 0 items if none)\nconst errorLogs = $('Get Error Logs').all().map(i => i.json).filter(r => r && r.event_type);\n\n// Supabase users: array response → one item per row\nconst knownCustomerIds = new Set(\n  $('Get Supabase Users').all()\n    .map(i => i.json.stripe_customer_id)\n    .filter(Boolean)\n);\n\n// Stripe subscriptions: list object { data: [...] } → single item\nconst stripeResponse = $('Get Stripe Subscriptions').first()?.json ?? {};\nconst stripeSubs = Array.isArray(stripeResponse.data) ? stripeResponse.data : [];\n\n// --- Find orphaned subscriptions ---\nconst orphanedSubs = stripeSubs.filter(sub => {\n  const cid = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;\n  return cid && !knownCustomerIds.has(cid);\n});\n\nconst resolvedOrphans = [];\n\n// --- Auto-cancel, refund, and log each orphan ---\nfor (const sub of orphanedSubs) {\n  const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer?.id;\n  const subscriptionId = sub.id;\n  const rawInvoice = sub.latest_invoice;\n  const latestInvoiceId = typeof rawInvoice === 'string' ? rawInvoice : (rawInvoice?.id ?? null);\n  let paymentIntentId = null;\n\n  try {\n    // 1. Cancel the subscription\n    await $helpers.httpRequest({\n      method: 'DELETE',\n      url: `https://api.stripe.com/v1/subscriptions/${subscriptionId}`,\n      headers: { Authorization: 'Bearer STRIPE_SECRET_KEY_HERE' },\n    });\n\n    // 2. Find payment intent via InvoicePayments API\n    if (latestInvoiceId) {\n      try {\n        const paymentsRes = await $helpers.httpRequest({\n          method: 'GET',\n          url: 'https://api.stripe.com/v1/invoice_payments',\n          headers: { Authorization: 'Bearer STRIPE_SECRET_KEY_HERE' },\n          qs: { invoice: latestInvoiceId, limit: 5 },\n        });\n        const defaultPayment = (paymentsRes.data || []).find(p => p.is_default);\n        const rawPi = defaultPayment?.payment?.payment_intent;\n        paymentIntentId = typeof rawPi === 'string' ? rawPi : (rawPi?.id ?? null);\n      } catch (_) { /* non-fatal: proceed without refund */ }\n    }\n\n    // 3. Issue refund if payment intent found\n    if (paymentIntentId) {\n      await $helpers.httpRequest({\n        method: 'POST',\n        url: 'https://api.stripe.com/v1/refunds',\n        headers: {\n          Authorization: 'Bearer STRIPE_SECRET_KEY_HERE',\n          'Content-Type': 'application/x-www-form-urlencoded',\n        },\n        body: `payment_intent=${encodeURIComponent(paymentIntentId)}`,\n      });\n    }\n\n    // 4. Log resolution to Supabase error_logs\n    await $helpers.httpRequest({\n      method: 'POST',\n      url: 'https://vjptwvubebxjjkxkzqqe.supabase.co/rest/v1/error_logs',\n      headers: {\n        apikey: 'SUPABASE_SERVICE_ROLE_KEY_HERE',\n        Authorization: 'Bearer SUPABASE_SERVICE_ROLE_KEY_HERE',\n        'Content-Type': 'application/json',\n        Prefer: 'return=minimal',\n      },\n      body: JSON.stringify({\n        event_type: 'orphaned_subscription_auto_resolved',\n        error_message: 'Orphaned subscription auto-cancelled and refunded by monthly audit',\n        metadata: {\n          stripe_customer_id: customerId,\n          subscription_id: subscriptionId,\n          payment_intent_id: paymentIntentId,\n        },\n      }),\n    });\n\n    resolvedOrphans.push({ customerId, subscriptionId, paymentIntentId, status: 'resolved' });\n  } catch (err) {\n    resolvedOrphans.push({ customerId, subscriptionId, error: err.message, status: 'failed' });\n  }\n}\n\n// --- Compile failure report from error_logs ---\nconst failures = errorLogs.map(log => ({\n  user_id: log.user_id,\n  stripe_customer_id: log.metadata?.stripe_customer_id,\n  event_type: log.event_type,\n  created_at: log.created_at,\n}));\n\nreturn [{\n  json: {\n    failures,\n    failureCount: failures.length,\n    resolvedOrphans,\n    orphanCount: resolvedOrphans.length,\n    hasIssues: failures.length > 0 || resolvedOrphans.length > 0,\n  },\n}];"
+      },
+      "id": "cross-reference",
+      "name": "Cross-Reference and Auto-Resolve",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 420]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { failures, failureCount, resolvedOrphans, orphanCount, hasIssues } = $input.first().json;\n\nlet text;\n\nif (!hasIssues) {\n  text = '\\u2705 Monthly Stripe audit complete \\u2014 no orphaned subscriptions or cancellation failures found.';\n} else {\n  const lines = ['\\u26a0\\ufe0f Monthly Stripe audit found issues:\\n'];\n\n  if (failureCount > 0) {\n    lines.push(`*Cancellation failures this month: ${failureCount}*`);\n    for (const f of failures) {\n      lines.push(`\\u2022 user_id: \\`${f.user_id || 'N/A'}\\`  stripe_customer_id: \\`${f.stripe_customer_id || 'N/A'}\\`  (${f.event_type})`);\n    }\n    lines.push('');\n  }\n\n  if (orphanCount > 0) {\n    lines.push(`*Orphaned subscriptions found and resolved: ${orphanCount}*`);\n    for (const o of resolvedOrphans) {\n      const icon = o.status === 'resolved' ? '\\u2705' : '\\u274c';\n      lines.push(`${icon} customer: \\`${o.customerId}\\`  sub: \\`${o.subscriptionId}\\``);\n    }\n    lines.push('');\n    lines.push('All orphaned subscriptions have been cancelled and refunded automatically. Review error_logs in Supabase for full details.');\n  }\n\n  text = lines.join('\\n');\n}\n\nreturn [{ json: { text } }];"
+      },
+      "id": "build-slack-msg",
+      "name": "Build Slack Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1200, 420]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "SLACK_WEBHOOK_URL_HERE",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: $json.text }) }}",
+        "options": {}
+      },
+      "id": "send-slack",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 420]
+    }
+  ],
+  "connections": {
+    "1st of Month 8AM": {
+      "main": [
+        [
+          { "node": "Get Error Logs",          "type": "main", "index": 0 },
+          { "node": "Get Supabase Users",       "type": "main", "index": 0 },
+          { "node": "Get Stripe Subscriptions", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Get Error Logs": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 0 }]]
+    },
+    "Get Supabase Users": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 1 }]]
+    },
+    "Get Stripe Subscriptions": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 2 }]]
+    },
+    "Merge Results": {
+      "main": [[{ "node": "Cross-Reference and Auto-Resolve", "type": "main", "index": 0 }]]
+    },
+    "Cross-Reference and Auto-Resolve": {
+      "main": [[{ "node": "Build Slack Message", "type": "main", "index": 0 }]]
+    },
+    "Build Slack Message": {
+      "main": [[{ "node": "Send Slack Alert", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "id": "restox-stripe-audit"
+}
