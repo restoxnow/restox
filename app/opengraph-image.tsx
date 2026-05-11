@@ -11,7 +11,6 @@ export default async function Image() {
       <div
         style={{
           background: 'linear-gradient(-45deg, #FF8C42, #FFD166, #F97316, #F43F5E)',
-          backgroundSize: '400% 400%',
           width: '100%',
           height: '100%',
           display: 'flex',
@@ -23,9 +22,9 @@ export default async function Image() {
           overflow: 'hidden',
         }}
       >
-        {/* Background blobs */}
         <div
           style={{
+            display: 'flex',
             position: 'absolute',
             top: -80,
             right: -80,
@@ -37,6 +36,7 @@ export default async function Image() {
         />
         <div
           style={{
+            display: 'flex',
             position: 'absolute',
             bottom: -60,
             left: -60,
@@ -46,8 +46,6 @@ export default async function Image() {
             background: 'rgba(244,63,94,0.3)',
           }}
         />
-
-        {/* Content */}
         <div
           style={{
             display: 'flex',
@@ -58,9 +56,9 @@ export default async function Image() {
             textAlign: 'center',
           }}
         >
-          {/* Logo text */}
           <div
             style={{
+              display: 'flex',
               fontSize: 64,
               fontWeight: 900,
               color: 'white',
@@ -70,7 +68,6 @@ export default async function Image() {
           >
             Restox
           </div>
-
           <div
             style={{
               display: 'flex',
@@ -87,9 +84,9 @@ export default async function Image() {
             <span>Automate the Everyday.</span>
             <span>Focus on What Matters.</span>
           </div>
-
           <div
             style={{
+              display: 'flex',
               fontSize: 22,
               color: 'rgba(255,255,255,0.82)',
               maxWidth: 700,
@@ -98,10 +95,9 @@ export default async function Image() {
           >
             One dashboard for Amazon, Walmart, groceries, and more.
           </div>
-
-          {/* Pill */}
           <div
             style={{
+              display: 'flex',
               marginTop: 16,
               padding: '12px 32px',
               background: 'rgba(255,255,255,0.25)',
