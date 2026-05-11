@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes'
 import { User, Bell, AlertTriangle, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper, CheckCircle, Loader2, Users, Lock, Headphones } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useUserTier } from '@/contexts/UserContext'
+import DeleteAccountModal from '@/components/dashboard/DeleteAccountModal'
 
 const SECTIONS = [
   { id: 'profile',       label: 'Account & Profile',     icon: User },
@@ -112,6 +113,7 @@ function SettingsContent() {
   const [defaultFrequency, setDefaultFrequency] = useState('monthly')
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   useEffect(() => {
     if (tabParam && SECTIONS.some(s => s.id === tabParam)) {
@@ -267,6 +269,12 @@ function SettingsContent() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {toast && <Toast message={toast} onDone={() => setToast('')} />}
+      {showDeleteModal && (
+        <DeleteAccountModal
+          planTier={currentPlan}
+          onClose={() => setShowDeleteModal(false)}
+        />
+      )}
 
       <div>
         <h1 className="text-2xl font-heading font-bold text-rx-navy dark:text-white">Settings</h1>
@@ -746,17 +754,20 @@ function SettingsContent() {
               <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-1">
                 <h2 className="font-heading font-semibold text-rx-navy dark:text-white mb-4">Security</h2>
                 {[
-                  { label: 'Change password', desc: 'Update your email/password login',       action: 'Update', danger: false },
-                  { label: 'Active sessions', desc: 'View and revoke devices',                action: 'Manage', danger: false },
-                  { label: 'Delete account',  desc: 'Permanently delete your Restox account', action: 'Delete', danger: true },
+                  { label: 'Change password', desc: 'Update your email/password login',       action: 'Update', danger: false,  onClick: undefined },
+                  { label: 'Active sessions', desc: 'View and revoke devices',                action: 'Manage', danger: false,  onClick: undefined },
+                  { label: 'Delete account',  desc: 'Permanently delete your Restox account', action: 'Delete', danger: true,   onClick: () => setShowDeleteModal(true) },
                 ].map(item => (
                   <div key={item.label} className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-white/5 last:border-0">
                     <div>
                       <p className={`text-sm font-medium font-body ${item.danger ? 'text-red-500' : 'text-rx-navy dark:text-white'}`}>{item.label}</p>
                       <p className="text-xs text-gray-400 dark:text-gray-500 font-body">{item.desc}</p>
                     </div>
-                    <button className={`text-xs font-semibold px-3 py-1.5 rounded-lg font-body transition-colors
-                      ${item.danger ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30' : 'text-rx-blue dark:text-blue-400 bg-rx-blue/10 hover:bg-rx-blue/20'}`}>
+                    <button
+                      onClick={item.onClick}
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-lg font-body transition-colors
+                        ${item.danger ? 'text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30' : 'text-rx-blue dark:text-blue-400 bg-rx-blue/10 hover:bg-rx-blue/20'}`}
+                    >
                       {item.action}
                     </button>
                   </div>
