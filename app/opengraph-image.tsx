@@ -73,16 +73,19 @@ export default async function Image() {
 
           <div
             style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
               fontSize: 36,
               fontWeight: 700,
               color: 'rgba(255,255,255,0.95)',
               lineHeight: 1.2,
               maxWidth: 800,
+              textAlign: 'center',
             }}
           >
-            Automate the Everyday.
-            <br />
-            Focus on What Matters.
+            <span>Automate the Everyday.</span>
+            <span>Focus on What Matters.</span>
           </div>
 
           <div
