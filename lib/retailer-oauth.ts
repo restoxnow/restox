@@ -69,6 +69,8 @@ export interface OAuthConfig {
   clientIdEnv: string
   /** Env var name for the client secret */
   clientSecretEnv: string
+  /** True when real client credentials are in place and the flow is live */
+  isOAuthLive: boolean
 }
 
 export interface TokenResponse {
@@ -124,6 +126,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Register at developer.kroger.com, request cart.basic:write scope, whitelist the callback URL.',
     clientIdEnv:       'KROGER_CLIENT_ID',
     clientSecretEnv:   'KROGER_CLIENT_SECRET',
+    isOAuthLive:       true,
   },
 
   // ── Amazon (Login with Amazon) ────────────────────────────────────────────
@@ -142,6 +145,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Register a Login with Amazon security profile. Purchase automation additionally requires the restricted Amazon Buyer API.',
     clientIdEnv:       'AMAZON_CLIENT_ID',
     clientSecretEnv:   'AMAZON_CLIENT_SECRET',
+    isOAuthLive:       true,
   },
 
   // ── Walmart ───────────────────────────────────────────────────────────────
@@ -161,6 +165,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Consumer cart OAuth requires a Walmart partnership agreement. Verify OAuth endpoints with Walmart after approval.',
     clientIdEnv:       'WALMART_CLIENT_ID',
     clientSecretEnv:   'WALMART_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Instacart ─────────────────────────────────────────────────────────────
@@ -179,6 +184,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Instacart Platform API is enterprise-only. Apply for partnership at instacart.com/business.',
     clientIdEnv:       'INSTACART_CLIENT_ID',
     clientSecretEnv:   'INSTACART_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Target ────────────────────────────────────────────────────────────────
@@ -197,6 +203,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Target does not offer a public consumer OAuth program. Requires direct partnership (developer@target.com).',
     clientIdEnv:       'TARGET_CLIENT_ID',
     clientSecretEnv:   'TARGET_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Albertsons ────────────────────────────────────────────────────────────
@@ -213,6 +220,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Requires an Albertsons corporate partnership agreement.',
     clientIdEnv:       'ALBERTSONS_CLIENT_ID',
     clientSecretEnv:   'ALBERTSONS_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Stop & Shop ───────────────────────────────────────────────────────────
@@ -230,6 +238,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Requires a corporate partnership with Ahold Delhaize (Stop & Shop parent company).',
     clientIdEnv:       'STOPANDSHOP_CLIENT_ID',
     clientSecretEnv:   'STOPANDSHOP_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Wegmans ───────────────────────────────────────────────────────────────
@@ -246,6 +255,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Wegmans has no public OAuth API. Contact developer@wegmans.com to inquire about partnership.',
     clientIdEnv:       'WEGMANS_CLIENT_ID',
     clientSecretEnv:   'WEGMANS_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Sephora ───────────────────────────────────────────────────────────────
@@ -262,6 +272,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Sephora has an invite-only API program. Requires direct partnership with Sephora.',
     clientIdEnv:       'SEPHORA_CLIENT_ID',
     clientSecretEnv:   'SEPHORA_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Chewy ─────────────────────────────────────────────────────────────────
@@ -278,6 +289,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Chewy has no public OAuth API. Requires direct partnership with Chewy.',
     clientIdEnv:       'CHEWY_CLIENT_ID',
     clientSecretEnv:   'CHEWY_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 
   // ── Home Depot ────────────────────────────────────────────────────────────
@@ -296,6 +308,7 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
     approvalNote:      'Home Depot developer program provides product-data APIs only. Purchase OAuth requires a separate partnership agreement.',
     clientIdEnv:       'HOMEDEPOT_CLIENT_ID',
     clientSecretEnv:   'HOMEDEPOT_CLIENT_SECRET',
+    isOAuthLive:       false,
   },
 }
 
