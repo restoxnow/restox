@@ -47,9 +47,10 @@ interface SidebarProps {
   userEmail?: string
   avatarUrl?: string
   planTier?: string
+  onNavItemClick?: () => void
 }
 
-export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'free' }: SidebarProps) {
+export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'free', onNavItemClick }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -99,6 +100,7 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
               key={href}
               href={href}
               title={collapsed ? label : undefined}
+              onClick={onNavItemClick}
               className={`flex items-center gap-3 mx-2 my-0.5 px-3 py-2.5 rounded-lg transition-colors duration-150
                 ${active
                   ? 'bg-rx-orange text-white'
@@ -152,12 +154,12 @@ export default function Sidebar({ userName, userEmail, avatarUrl, planTier = 'fr
         )}
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — desktop only */}
       <button
         onClick={() => setCollapsed(c => !c)}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        className="absolute -right-3 top-[72px] w-6 h-6 bg-rx-navy border border-rx-navy-lighter rounded-full
-          flex items-center justify-center text-white/50 hover:text-white hover:bg-rx-blue transition-colors"
+        className="hidden md:flex absolute -right-3 top-[72px] w-6 h-6 bg-rx-navy border border-rx-navy-lighter rounded-full
+          items-center justify-center text-white/50 hover:text-white hover:bg-rx-blue transition-colors"
       >
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
