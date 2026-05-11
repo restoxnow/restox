@@ -1,6 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+import { notifyAdmin } from '@/lib/admin-notify'
+
+function adminSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  )
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
@@ -35,6 +45,22 @@ export async function GET(request: NextRequest) {
       const isNewUser = Date.now() - createdMs < 2 * 60 * 1000
 
       if (isNewUser) {
+        // Fire-and-forget new user alert with total user count
+        ;(async () => {
+          try {
+            const { count } = await adminSupabase()
+              .from('users')
+              .select('id', { count: 'exact', head: true })
+            await notifyAdmin({
+              type: 'new_user',
+              email: user.email ?? '',
+              totalUsers: count ?? 0,
+            })
+          } catch (err) {
+            console.warn('[auth/callback] notify error:', err)
+          }
+        })()
+
         return NextResponse.redirect(
           `${origin}/dashboard/settings?tab=profile&welcome=true`
         )

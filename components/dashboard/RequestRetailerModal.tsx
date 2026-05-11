@@ -34,6 +34,19 @@ export default function RequestRetailerModal({ onClose }: Props) {
       })
       if (dbError) throw dbError
 
+      // Fire-and-forget admin notification — never blocks the user
+      fetch('/api/admin/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'retailer_request',
+          userEmail: user.email ?? '',
+          retailerName: retailerName.trim(),
+          websiteUrl: websiteUrl.trim() || null,
+          reason: reason.trim() || null,
+        }),
+      }).catch(() => {})
+
       setSubmitted(true)
     } catch (err: any) {
       setError(err.message)

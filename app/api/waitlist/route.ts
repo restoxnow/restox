@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notifyAdmin } from '@/lib/admin-notify'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,6 +55,13 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       )
     }
+
+    notifyAdmin({
+      type: 'waitlist_signup',
+      email: email.toLowerCase().trim(),
+      name: name.trim(),
+      userType: user_type,
+    }).catch(err => console.warn('[waitlist] notify error:', err))
 
     return NextResponse.json({ success: true }, { status: 200 })
   } catch (err) {
