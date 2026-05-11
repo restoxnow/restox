@@ -12,7 +12,6 @@ import {
   BrainCircuit,
   PieChart,
   Settings,
-  CreditCard,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -32,8 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard/schedules',          label: 'Schedules',          icon: CalendarClock },
   { href: '/dashboard/products',           label: 'Products',           icon: Package },
   { href: '/dashboard/ai-timing',          label: 'AI Reorder Timing',  icon: BrainCircuit, badge: 'CONSUMER' },
-  { href: '/dashboard/spend-intelligence', label: 'Spend Intelligence', icon: PieChart,     badge: 'PRO' },
-  { href: '/dashboard/settings/billing',  label: 'Billing & Plan',     icon: CreditCard },
+  { href: '/dashboard/spend-intelligence', label: 'Spend Intelligence', icon: PieChart,   badge: 'PRO' },
   { href: '/dashboard/settings',          label: 'Settings',           icon: Settings },
 ]
 

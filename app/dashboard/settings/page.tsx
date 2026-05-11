@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from 'next-themes'
-import { User, Bell, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper, CheckCircle, Loader2, Users, Lock, Headphones } from 'lucide-react'
+import { User, Bell, AlertTriangle, CreditCard, Store, Shield, Palette, Sun, Moon, Monitor, PartyPopper, CheckCircle, Loader2, Users, Lock, Headphones } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useUserTier } from '@/contexts/UserContext'
 
@@ -18,11 +18,24 @@ const SECTIONS = [
 
 type SectionId = typeof SECTIONS[number]['id']
 
+const MONTHLY_PRICES: Record<string, string> = {
+  free: '$0', consumer: '$9.99', professional: '$29', business: '$79',
+}
+const ANNUAL_PRICES: Record<string, { yearly: string; perMonth: string }> = {
+  free:         { yearly: '$0',   perMonth: '$0' },
+  consumer:     { yearly: '$99',  perMonth: '$8.25' },
+  professional: { yearly: '$290', perMonth: '$24.17' },
+  business:     { yearly: '$790', perMonth: '$65.83' },
+}
+const TIER_ORDER = ['free', 'consumer', 'professional', 'business']
+const RETAILER_CAPS: Record<string, number> = { free: 3, consumer: 5, professional: 10, business: Infinity }
+const SCHEDULE_CAPS: Record<string, number> = { free: 3, consumer: 10, professional: 30, business: Infinity }
+
 const PLANS = [
-  { id: 'free',         label: 'Free',         price: '$0/mo',    schedules: '3 schedules · 3 retailers',         features: ['Manual only', 'Ad-supported'] },
-  { id: 'consumer',     label: 'Consumer',     price: '$9.99/mo', schedules: '10 schedules · 5 retailers',        features: ['Price Compare', 'AI Reorder Timing', 'Full automation', 'Ad-free'] },
-  { id: 'professional', label: 'Professional', price: '$29/mo',   schedules: '30 schedules · 10 retailers',       features: ['Spend Intelligence', 'Order History AI', 'Priority support'] },
-  { id: 'business',     label: 'Business',     price: '$79/mo',   schedules: 'Unlimited schedules & retailers',   features: ['Seasonal Forecast', 'Advanced Analytics', 'Multi-user seats', 'Priority support'] },
+  { id: 'free',         label: 'Free',         tagline: 'Basic restocking automation',    schedules: '3 schedules · 3 retailers',       features: ['Basic automation', 'Price Compare', 'Ad-supported'] },
+  { id: 'consumer',     label: 'Consumer',     tagline: 'Smart home restocking, ad-free', schedules: '10 schedules · 5 retailers',      features: ['Price Compare', 'AI Reorder Timing', 'Full automation', 'Ad-free'] },
+  { id: 'professional', label: 'Professional', tagline: 'Advanced tools for power users', schedules: '30 schedules · 10 retailers',     features: ['Spend Intelligence', 'Order History AI', 'Ad-free'] },
+  { id: 'business',     label: 'Business',     tagline: 'Unlimited scale for your team',  schedules: 'Unlimited schedules & retailers', features: ['Seasonal Forecasting', 'Advanced Analytics', 'Multi-user / Team', 'Priority Support'] },
 ]
 
 const THEME_OPTIONS: { value: string; label: string; icon: React.ElementType }[] = [
@@ -81,6 +94,12 @@ function SettingsContent() {
   const [redeeming, setRedeeming] = useState(false)
   const [redeemError, setRedeemError] = useState('')
   const [redeemSuccess, setRedeemSuccess] = useState('')
+  const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly')
+  const [retailerCount, setRetailerCount] = useState(0)
+  const [scheduleCount, setScheduleCount] = useState(0)
+  const [paymentFailedAt, setPaymentFailedAt] = useState<string | null>(null)
+  const [previousPlanTier, setPreviousPlanTier] = useState<string | null>(null)
+  const [upgrading, setUpgrading] = useState<string | null>(null)
 
   // Profile state
   const [fullName, setFullName] = useState('')
@@ -107,7 +126,7 @@ function SettingsContent() {
       setEmail(user.email ?? '')
       const { data } = await supabase
         .from('users')
-        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at, nudge_email_unsubscribed')
+        .select('full_name, shipping_addresses, household_size, default_frequency, plan_tier, focus_group_access_expires_at, nudge_email_unsubscribed, payment_failed_at, previous_plan_tier')
         .eq('id', user.id)
         .single()
       if (data) {
@@ -115,6 +134,8 @@ function SettingsContent() {
         setCurrentPlan((data.plan_tier as string | null) ?? 'free')
         setFocusGroupExpiry((data.focus_group_access_expires_at as string | null) ?? null)
         setNudgeEmailUnsubscribed((data.nudge_email_unsubscribed as boolean | null) ?? false)
+        setPaymentFailedAt((data.payment_failed_at as string | null) ?? null)
+        setPreviousPlanTier((data.previous_plan_tier as string | null) ?? null)
         setHouseholdSize(String(data.household_size ?? 1))
         setDefaultFrequency(data.default_frequency ?? 'monthly')
         const addrs = data.shipping_addresses
@@ -126,6 +147,12 @@ function SettingsContent() {
           setZip((addr as any).zip ?? '')
         }
       }
+      const [rRes, sRes] = await Promise.all([
+        supabase.from('retailers').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_suspended', false),
+        supabase.from('purchase_schedules').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_suspended', false),
+      ])
+      setRetailerCount(rRes.count ?? 0)
+      setScheduleCount(sRes.count ?? 0)
     }
     loadProfile()
   }, [supabase])
@@ -213,6 +240,24 @@ function SettingsContent() {
         setToast('Default frequency saved!')
       }
     } catch { /* silent */ }
+  }
+
+  const handleUpgrade = async (tier: string) => {
+    setUpgrading(tier)
+    try {
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, billingPeriod }),
+      })
+      const json = await res.json()
+      if (json.url) window.location.href = json.url
+      else setToast('Something went wrong. Please try again.')
+    } catch {
+      setToast('Something went wrong. Please try again.')
+    } finally {
+      setUpgrading(null)
+    }
   }
 
   const inputCls = `w-full px-4 py-2.5 border rounded-xl text-sm font-body
@@ -474,8 +519,62 @@ function SettingsContent() {
 
           {section === 'billing' && (
             <div className="space-y-4">
+              {/* Payment failure banner */}
+              {paymentFailedAt && (
+                <div className="flex items-start gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
+                  <AlertTriangle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-400 font-body">Payment failed — account temporarily on Free</p>
+                    <p className="text-xs text-red-600/80 dark:text-red-400/80 font-body mt-0.5">
+                      Update your payment method to restore{' '}
+                      <span className="font-medium capitalize">{previousPlanTier ?? 'paid'}</span> access.
+                    </p>
+                  </div>
+                  <a href="/dashboard/settings/billing" className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline shrink-0">Fix now →</a>
+                </div>
+              )}
+
               <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-4">
                 <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Billing & Plan</h2>
+
+                {/* Current plan banner with usage meters */}
+                <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="font-heading font-bold text-rx-navy dark:text-white">
+                      {PLANS.find(p => p.id === currentPlan)?.label ?? 'Free'}
+                    </span>
+                    <span className="text-[10px] font-bold text-rx-orange border border-rx-orange/30 bg-white dark:bg-white/10 px-1.5 py-0.5 rounded-full">Current plan</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-body">
+                    {PLANS.find(p => p.id === currentPlan)?.tagline ?? ''}
+                  </p>
+                  {currentPlan !== 'business' ? (
+                    <div className="space-y-2">
+                      {[
+                        { label: 'Retailers', count: retailerCount, cap: RETAILER_CAPS[currentPlan] ?? 3 },
+                        { label: 'Schedules', count: scheduleCount, cap: SCHEDULE_CAPS[currentPlan] ?? 3 },
+                      ].map(({ label, count, cap }) => {
+                        const pct = Math.min(100, Math.round((count / cap) * 100))
+                        return (
+                          <div key={label}>
+                            <div className="flex justify-between text-[11px] text-gray-500 dark:text-gray-400 font-body mb-1">
+                              <span>{label}</span>
+                              <span>{count} / {cap}</span>
+                            </div>
+                            <div className="h-1.5 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${pct >= 90 ? 'bg-red-400' : pct >= 70 ? 'bg-amber-400' : 'bg-rx-orange'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-body">{retailerCount} retailers · {scheduleCount} schedules · Unlimited</p>
+                  )}
+                </div>
 
                 {/* Focus group expiry notice */}
                 {focusGroupExpiry && (
@@ -494,37 +593,82 @@ function SettingsContent() {
                   </div>
                 )}
 
+                {/* Monthly/Annual toggle */}
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-semibold font-body ${billingPeriod === 'monthly' ? 'text-rx-navy dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>Monthly</span>
+                  <button
+                    onClick={() => setBillingPeriod(p => p === 'monthly' ? 'annual' : 'monthly')}
+                    className={`relative w-10 h-5 rounded-full transition-colors ${billingPeriod === 'annual' ? 'bg-rx-orange' : 'bg-gray-200 dark:bg-white/10'}`}
+                  >
+                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${billingPeriod === 'annual' ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                  </button>
+                  <span className={`text-xs font-semibold font-body ${billingPeriod === 'annual' ? 'text-rx-navy dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>Annual</span>
+                  <span className="text-[10px] font-bold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full">Save 17%</span>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {PLANS.map(plan => (
-                    <div
-                      key={plan.id}
-                      className={`rounded-xl border-2 p-4 transition-colors
-                        ${currentPlan === plan.id
-                          ? 'border-rx-orange bg-rx-orange-light dark:bg-rx-orange/10'
-                          : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
-                        }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="font-heading font-bold text-rx-navy dark:text-white text-sm">{plan.label}</span>
-                        {currentPlan === plan.id && (
-                          <span className="text-[10px] font-bold text-rx-orange border border-rx-orange/30 bg-white dark:bg-white/10 px-1.5 py-0.5 rounded-full">Current</span>
+                  {PLANS.map(plan => {
+                    const isCurrent = currentPlan === plan.id
+                    const isUpgrade = TIER_ORDER.indexOf(plan.id) > TIER_ORDER.indexOf(currentPlan)
+                    const price = billingPeriod === 'monthly' ? MONTHLY_PRICES[plan.id] : ANNUAL_PRICES[plan.id].perMonth
+                    return (
+                      <div
+                        key={plan.id}
+                        className={`rounded-xl border-2 p-4 transition-colors
+                          ${isCurrent
+                            ? 'border-rx-orange bg-rx-orange-light dark:bg-rx-orange/10'
+                            : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20'
+                          }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-heading font-bold text-rx-navy dark:text-white text-sm">{plan.label}</span>
+                          <div className="flex items-center gap-1">
+                            {billingPeriod === 'annual' && plan.id !== 'free' && (
+                              <span className="text-[9px] font-bold text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1 py-0.5 rounded">2 mo free</span>
+                            )}
+                            {isCurrent && (
+                              <span className="text-[10px] font-bold text-rx-orange border border-rx-orange/30 bg-white dark:bg-white/10 px-1.5 py-0.5 rounded-full">Current</span>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-lg font-bold font-heading text-rx-navy dark:text-white">
+                          {price}<span className="text-xs font-normal text-gray-400 dark:text-gray-500">/mo</span>
+                        </p>
+                        {billingPeriod === 'annual' && plan.id !== 'free' && (
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body">{ANNUAL_PRICES[plan.id].yearly}/yr billed annually</p>
+                        )}
+                        <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5 mb-2">{plan.schedules}</p>
+                        <ul className="space-y-0.5">
+                          {plan.features.map(f => (
+                            <li key={f} className="text-xs text-gray-500 dark:text-gray-400 font-body">· {f}</li>
+                          ))}
+                        </ul>
+                        {!isCurrent && isUpgrade && (
+                          <button
+                            onClick={() => handleUpgrade(plan.id)}
+                            disabled={upgrading === plan.id}
+                            className="mt-3 w-full py-1.5 bg-rx-orange text-white text-xs font-bold rounded-lg hover:bg-rx-orange-dark transition-colors font-body flex items-center justify-center gap-1 disabled:opacity-60"
+                          >
+                            {upgrading === plan.id ? <Loader2 size={12} className="animate-spin" /> : 'Upgrade'}
+                          </button>
+                        )}
+                        {!isCurrent && !isUpgrade && plan.id !== 'free' && (
+                          <a
+                            href="/dashboard/settings/billing"
+                            className="mt-3 block w-full py-1.5 text-center border border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 text-xs font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors font-body"
+                          >
+                            Downgrade
+                          </a>
                         )}
                       </div>
-                      <p className="text-lg font-bold font-heading text-rx-navy dark:text-white">{plan.price}</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 font-body mt-0.5 mb-2">{plan.schedules}</p>
-                      <ul className="space-y-0.5">
-                        {plan.features.map(f => (
-                          <li key={f} className="text-xs text-gray-500 dark:text-gray-400 font-body">· {f}</li>
-                        ))}
-                      </ul>
-                      {currentPlan !== plan.id && (
-                        <button className="mt-3 w-full py-1.5 bg-rx-orange text-white text-xs font-bold rounded-lg hover:bg-rx-orange-dark transition-colors font-body">
-                          Upgrade
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
+
+                <p className="text-xs text-gray-400 dark:text-gray-500 font-body text-center">
+                  Manage payment methods and invoices at{' '}
+                  <a href="/dashboard/settings/billing" className="text-rx-orange hover:underline">your billing page</a>
+                </p>
               </div>
 
               {/* Focus group code redemption */}
@@ -626,7 +770,7 @@ function SettingsContent() {
                 ) : (
                   <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
                     Multi-user seats and approval workflows are available on the Business plan.{' '}
-                    <a href="/#pricing" className="text-rx-orange hover:underline">Upgrade →</a>
+                    <a href="/dashboard/settings/billing" className="text-rx-orange hover:underline">Upgrade →</a>
                   </p>
                 )}
               </div>
@@ -653,7 +797,7 @@ function SettingsContent() {
                 ) : (
                   <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
                     Priority support with dedicated response times is available on the Business plan.{' '}
-                    <a href="/#pricing" className="text-rx-orange hover:underline">Upgrade →</a>
+                    <a href="/dashboard/settings/billing" className="text-rx-orange hover:underline">Upgrade →</a>
                   </p>
                 )}
               </div>
