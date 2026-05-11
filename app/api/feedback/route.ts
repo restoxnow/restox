@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { logError } from '@/lib/log-error'
 import { notifyAdmin } from '@/lib/admin-notify'
 
-const CATEGORIES = ['Bug Report', 'Broken Link', 'Feature Request', 'Other'] as const
+const CATEGORIES = ['Bug Report', 'Broken Link', 'Feature Request', 'Focus Group Feedback', 'Other'] as const
 
 function adminClient() {
   return createClient(
