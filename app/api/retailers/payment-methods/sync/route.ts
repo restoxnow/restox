@@ -13,12 +13,15 @@ function adminClient() {
   )
 }
 
+const ALLOWED_BRANDS = ['Visa', 'Mastercard', 'American Express', 'Discover', 'Other'] as const
+
 // ---------------------------------------------------------------------------
 // POST /api/retailers/payment-methods/sync
-// Fetches saved payment methods from a retailer's API and upserts into
-// retailer_payment_methods. Called after successful OAuth connection.
+// Two modes:
+//   Self-entry: body includes { last4, brand } — stores user-provided card info.
+//   OAuth sync: fetches payment methods from retailer API (existing behavior).
 // Auth: Supabase session (client) OR Bearer ORDER_SYNC_SECRET (n8n).
-// Body: { retailer_name: string, user_id?: string }
+// Body: { retailer_name: string, last4?: string, brand?: string, user_id?: string }
 // ---------------------------------------------------------------------------
 export async function POST(req: NextRequest) {
   let userId: string
@@ -43,6 +46,40 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = adminClient()
+
+  // ── Self-entry mode ───────────────────────────────────────────────────────
+  if (body.last4 !== undefined || body.brand !== undefined) {
+    const brand = String(body.brand ?? '')
+    const last4 = String(body.last4 ?? '')
+
+    if (!ALLOWED_BRANDS.includes(brand as typeof ALLOWED_BRANDS[number])) {
+      return NextResponse.json({ error: 'Invalid brand' }, { status: 400 })
+    }
+    if (!/^\d{4}$/.test(last4)) {
+      return NextResponse.json({ error: 'last4 must be exactly 4 digits' }, { status: 400 })
+    }
+
+    const { error } = await admin
+      .from('retailer_payment_methods')
+      .upsert(
+        {
+          user_id:                 userId,
+          retailer_name:           retailerName,
+          payment_method_id:       'self-entered',
+          last4,
+          brand,
+          is_default:              true,
+          selected_for_auto_order: true,
+        },
+        { onConflict: 'user_id,retailer_name,payment_method_id', ignoreDuplicates: false }
+      )
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ synced: 1, manual: true })
+  }
 
   // Look up the retailer's stored OAuth token
   const { data: retailer } = await admin

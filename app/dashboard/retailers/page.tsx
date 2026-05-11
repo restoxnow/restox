@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Search, ChevronDown, ChevronRight, CheckCircle, X,
   Loader2, AlertTriangle, Link2, Calendar, CheckCircle2, AlertCircle,
-  CreditCard, Info, Shield, PauseCircle, Store, Puzzle,
+  CreditCard, Shield, PauseCircle, Store, Puzzle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useExtensionDetected } from '@/hooks/useExtensionDetected'
@@ -191,6 +191,8 @@ const CONN_TYPE_LABEL: Record<string, string> = {
 // ---------------------------------------------------------------------------
 // ConnectedRetailerCard — with payment method selector
 // ---------------------------------------------------------------------------
+const CARD_BRANDS = ['Visa', 'Mastercard', 'American Express', 'Discover', 'Other'] as const
+
 function ConnectedRetailerCard({
   retailer,
   onDisconnect,
@@ -207,17 +209,20 @@ function ConnectedRetailerCard({
   const [selectedId, setSelectedId]         = useState<string | null>(null)
   const [saving, setSaving]                 = useState(false)
   const [saveMsg, setSaveMsg]               = useState<string | null>(null)
+  // Self-entry form state
+  const [editingPayment, setEditingPayment] = useState(false)
+  const [entryBrand, setEntryBrand]         = useState('')
+  const [entryLast4, setEntryLast4]         = useState('')
+  const [entryError, setEntryError]         = useState<string | null>(null)
+  const [submitting, setSubmitting]         = useState(false)
+  const [removing, setRemoving]             = useState<string | null>(null)
 
   const badgeCls   = CONN_TYPE_BADGE[retailer.connection_type]   ?? CONN_TYPE_BADGE.credentials
   const badgeLabel = CONN_TYPE_LABEL[retailer.connection_type]   ?? retailer.connection_type
 
   const selectedMethod = methods.find(m => m.payment_method_id === selectedId) ?? null
 
-  // Load payment methods on first expand
-  const openPayment = async () => {
-    setShowPayment(v => !v)
-    if (methods.length > 0 || loadingMethods) return
-    setLoadingMethods(true)
+  const reloadMethods = async () => {
     const { data } = await supabase
       .from('retailer_payment_methods')
       .select('id, payment_method_id, last4, brand, expiry_month, expiry_year, is_default, selected_for_auto_order')
@@ -225,11 +230,21 @@ function ConnectedRetailerCard({
       .order('is_default', { ascending: false })
     const rows = (data as StoredPaymentMethod[]) ?? []
     setMethods(rows)
-    const already = rows.find(m => m.selected_for_auto_order)
-    if (already) setSelectedId(already.payment_method_id)
+    const sel = rows.find(m => m.selected_for_auto_order)
+    if (sel) setSelectedId(sel.payment_method_id)
+    return rows
+  }
+
+  // Load payment methods on first expand
+  const openPayment = async () => {
+    setShowPayment(v => !v)
+    if (methods.length > 0 || loadingMethods) return
+    setLoadingMethods(true)
+    await reloadMethods()
     setLoadingMethods(false)
   }
 
+  // Save radio selection (multi-card)
   const handleSave = async () => {
     setSaving(true)
     setSaveMsg(null)
@@ -249,6 +264,42 @@ function ConnectedRetailerCard({
     }
   }
 
+  // Save self-entered card
+  const handleSelfEntrySave = async () => {
+    if (!entryBrand) { setEntryError('Please select a card brand'); return }
+    if (!/^\d{4}$/.test(entryLast4)) { setEntryError('Please enter exactly 4 digits'); return }
+    setEntryError(null)
+    setSubmitting(true)
+    const res = await fetch('/api/retailers/payment-methods/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        retailer_name: retailer.name,
+        last4: entryLast4,
+        brand: entryBrand,
+        is_default: true,
+      }),
+    })
+    setSubmitting(false)
+    if (!res.ok) { setEntryError('Failed to save. Please try again.'); return }
+    await reloadMethods()
+    setEditingPayment(false)
+    setEntryBrand('')
+    setEntryLast4('')
+  }
+
+  // Remove a payment method
+  const handleRemove = async (method: StoredPaymentMethod) => {
+    setRemoving(method.id)
+    const res = await fetch(`/api/retailers/payment-methods/${method.id}`, { method: 'DELETE' })
+    setRemoving(null)
+    if (res.ok) {
+      const updated = methods.filter(m => m.id !== method.id)
+      setMethods(updated)
+      if (selectedId === method.payment_method_id) setSelectedId(null)
+    }
+  }
+
   const handleConfirm = async () => {
     setDisconnecting(true)
     await onDisconnect(retailer)
@@ -260,7 +311,7 @@ function ConnectedRetailerCard({
     ? `${selectedMethod.brand ?? 'Card'} ••••${selectedMethod.last4}`
     : methods.length > 0
       ? 'No method selected'
-      : 'Confirmation required'
+      : 'Not configured'
 
   return (
     <div className={`relative bg-white dark:bg-[#16213E] rounded-xl border shadow-sm dark:shadow-none overflow-hidden ${
@@ -349,91 +400,188 @@ function ConnectedRetailerCard({
             </div>
           )}
 
-          {!loadingMethods && methods.length === 0 && (
-            <div className="flex items-start gap-2.5 px-3 py-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30">
-              <Info size={14} className="text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" />
+          {/* ── Self-entry form ── shown when no methods saved, or user is editing */}
+          {!loadingMethods && (methods.length === 0 || editingPayment) && (
+            <div className="space-y-3">
               <div>
-                <p className="text-xs font-semibold text-blue-800 dark:text-blue-300 font-body">
-                  Restox will confirm with you before each order
+                <p className="text-sm font-semibold text-rx-navy dark:text-white font-body">
+                  Which card is saved on {retailer.name}?
                 </p>
-                <p className="text-[11px] text-blue-600 dark:text-blue-400 font-body mt-0.5 leading-relaxed">
-                  {retailer.name}&apos;s API doesn&apos;t expose saved payment methods yet.
-                  You&apos;ll receive an email confirmation before every automated order.
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 font-body mt-1 leading-relaxed">
+                  We&apos;ll use this to confirm your orders. Make sure it matches the card saved
+                  in your {retailer.name} account.
                 </p>
               </div>
-            </div>
-          )}
 
-          {!loadingMethods && methods.length > 0 && (
-            <div className="space-y-2">
-              {methods.map(m => (
-                <label
-                  key={m.payment_method_id}
-                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                    selectedId === m.payment_method_id
-                      ? 'border-rx-orange/40 bg-rx-orange-light dark:bg-rx-orange/10'
-                      : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
-                  }`}
+              <div className="flex gap-2">
+                <select
+                  value={entryBrand}
+                  onChange={e => setEntryBrand(e.target.value)}
+                  className="flex-1 px-3 py-2 text-xs font-body rounded-lg border border-gray-200 dark:border-white/10
+                    bg-white dark:bg-[#1a2744] text-rx-navy dark:text-white
+                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange"
                 >
-                  <input
-                    type="radio"
-                    name={`payment-${retailer.id}`}
-                    value={m.payment_method_id}
-                    checked={selectedId === m.payment_method_id}
-                    onChange={() => setSelectedId(m.payment_method_id)}
-                    className="accent-rx-orange"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-rx-navy dark:text-white font-body">
-                      {m.brand ?? 'Card'} ••••{m.last4}
-                      {m.is_default && (
-                        <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/30">
-                          Default
-                        </span>
-                      )}
-                    </p>
-                    {m.expiry_month && m.expiry_year && (
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body mt-0.5">
-                        expires {String(m.expiry_month).padStart(2, '0')}/{m.expiry_year}
-                      </p>
-                    )}
-                  </div>
-                </label>
-              ))}
+                  <option value="">Card brand</option>
+                  {CARD_BRANDS.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={entryLast4}
+                  onChange={e => setEntryLast4(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="1234"
+                  className="w-24 px-3 py-2 text-xs font-body rounded-lg border border-gray-200 dark:border-white/10
+                    bg-white dark:bg-[#1a2744] text-rx-navy dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500
+                    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange"
+                />
+              </div>
 
-              <div className="flex items-center gap-3 pt-1">
+              {entryError && (
+                <p className="text-xs text-red-500 font-body">{entryError}</p>
+              )}
+
+              <div className="flex items-center gap-3">
                 <button
-                  onClick={handleSave}
-                  disabled={saving}
+                  onClick={handleSelfEntrySave}
+                  disabled={submitting}
                   className="px-4 py-1.5 bg-rx-orange hover:bg-rx-orange-dark text-white text-xs font-semibold rounded-lg transition-colors font-body disabled:opacity-60 flex items-center gap-1.5"
                 >
-                  {saving ? <Loader2 size={11} className="animate-spin" /> : null}
-                  {saving ? 'Saving…' : 'Save selection'}
+                  {submitting ? <Loader2 size={11} className="animate-spin" /> : null}
+                  {submitting ? 'Saving…' : 'Save payment info'}
                 </button>
-                {saveMsg && (
-                  <span className={`text-xs font-body font-semibold ${saveMsg === 'Saved!' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                    {saveMsg}
-                  </span>
+                {editingPayment && methods.length > 0 && (
+                  <button
+                    onClick={() => { setEditingPayment(false); setEntryError(null) }}
+                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 font-body transition-colors"
+                  >
+                    Cancel
+                  </button>
                 )}
+              </div>
+
+              <div className="flex items-start gap-1.5 pt-1">
+                <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
+                  Restox never stores your full card number. This is for identification only.
+                </p>
               </div>
             </div>
           )}
 
-          {/* Security disclaimers */}
-          <div className="space-y-1 pt-1 border-t border-gray-100 dark:border-white/10">
-            <div className="flex items-start gap-1.5">
-              <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
-                Restox never stores your full card number. Payment is processed directly by {retailer.name}.
-              </p>
+          {/* ── Saved state ── shown when methods exist and not editing */}
+          {!loadingMethods && methods.length > 0 && !editingPayment && (
+            <div className="space-y-2">
+              {methods.length === 1 ? (
+                // Single card: compact display with Edit + Remove
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/3">
+                  <CreditCard size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
+                  <p className="text-xs font-semibold text-rx-navy dark:text-white font-body flex-1">
+                    {methods[0].brand ?? 'Card'} ••••{methods[0].last4}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setEntryBrand(methods[0].brand ?? '')
+                      setEntryLast4(methods[0].last4 ?? '')
+                      setEditingPayment(true)
+                    }}
+                    className="text-xs text-rx-orange hover:text-rx-orange-dark font-semibold font-body transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <span className="text-gray-200 dark:text-white/10">|</span>
+                  <button
+                    onClick={() => handleRemove(methods[0])}
+                    disabled={removing === methods[0].id}
+                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 font-body transition-colors disabled:opacity-60 flex items-center gap-1"
+                  >
+                    {removing === methods[0].id ? <Loader2 size={10} className="animate-spin" /> : null}
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                // Multiple cards: radio selection + remove per card
+                <>
+                  {methods.map(m => (
+                    <label
+                      key={m.payment_method_id}
+                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        selectedId === m.payment_method_id
+                          ? 'border-rx-orange/40 bg-rx-orange-light dark:bg-rx-orange/10'
+                          : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name={`payment-${retailer.id}`}
+                        value={m.payment_method_id}
+                        checked={selectedId === m.payment_method_id}
+                        onChange={() => setSelectedId(m.payment_method_id)}
+                        className="accent-rx-orange"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-rx-navy dark:text-white font-body">
+                          {m.brand ?? 'Card'} ••••{m.last4}
+                          {m.is_default && (
+                            <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/30">
+                              Default
+                            </span>
+                          )}
+                        </p>
+                        {m.expiry_month && m.expiry_year && (
+                          <p className="text-[11px] text-gray-400 dark:text-gray-500 font-body mt-0.5">
+                            expires {String(m.expiry_month).padStart(2, '0')}/{m.expiry_year}
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={e => { e.preventDefault(); handleRemove(m) }}
+                        disabled={removing === m.id}
+                        className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 font-body transition-colors disabled:opacity-60 flex items-center gap-1"
+                      >
+                        {removing === m.id ? <Loader2 size={10} className="animate-spin" /> : null}
+                        Remove
+                      </button>
+                    </label>
+                  ))}
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-4 py-1.5 bg-rx-orange hover:bg-rx-orange-dark text-white text-xs font-semibold rounded-lg transition-colors font-body disabled:opacity-60 flex items-center gap-1.5"
+                    >
+                      {saving ? <Loader2 size={11} className="animate-spin" /> : null}
+                      {saving ? 'Saving…' : 'Save selection'}
+                    </button>
+                    {saveMsg && (
+                      <span className={`text-xs font-body font-semibold ${saveMsg === 'Saved!' ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                        {saveMsg}
+                      </span>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* Security disclaimers */}
+              <div className="space-y-1 pt-1 border-t border-gray-100 dark:border-white/10">
+                <div className="flex items-start gap-1.5">
+                  <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
+                    Restox never stores your full card number. Payment is processed directly by {retailer.name}.
+                  </p>
+                </div>
+                <div className="flex items-start gap-1.5">
+                  <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
+                    You will always receive a confirmation notification before any order is placed.
+                  </p>
+                </div>
+              </div>
             </div>
-            <div className="flex items-start gap-1.5">
-              <Shield size={11} className="text-gray-400 dark:text-gray-500 shrink-0 mt-0.5" />
-              <p className="text-[10px] text-gray-400 dark:text-gray-500 font-body leading-relaxed">
-                You will always receive a confirmation notification before any order is placed.
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
