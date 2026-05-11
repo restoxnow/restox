@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { X, Store, Loader2, CheckCircle } from 'lucide-react'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 
 interface Props {
   onClose: () => void
@@ -15,7 +14,6 @@ export default function RequestRetailerModal({ onClose }: Props) {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState('')
-  const supabase = createSupabaseBrowserClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,30 +21,19 @@ export default function RequestRetailerModal({ onClose }: Props) {
     setError('')
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
-      const { error: dbError } = await supabase.from('retailer_requests').insert({
-        user_id: user.id,
-        retailer_name: retailerName.trim(),
-        website_url: websiteUrl.trim() || null,
-        reason: reason.trim() || null,
-      })
-      if (dbError) throw dbError
-
-      // Fire-and-forget admin notification — never blocks the user
-      fetch('/api/admin/notify', {
+      const res = await fetch('/api/retailers/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'retailer_request',
-          userEmail: user.email ?? '',
           retailerName: retailerName.trim(),
           websiteUrl: websiteUrl.trim() || null,
           reason: reason.trim() || null,
         }),
-      }).catch(() => {})
-
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? 'Submission failed')
+      }
       setSubmitted(true)
     } catch (err: any) {
       setError(err.message)
