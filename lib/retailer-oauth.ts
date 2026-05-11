@@ -114,8 +114,8 @@ export const OAUTH_CONFIGS: Record<string, OAuthConfig> = {
   // and whitelist the redirect URI.  Approval typically takes a few business days.
   kroger: {
     displayName:       'Kroger',
-    authUrl:           'https://api.kroger.com/v1/connect/oauth2/authorize',
-    tokenUrl:          'https://api.kroger.com/v1/connect/oauth2/token',
+    authUrl:           'https://api-ce.kroger.com/v1/connect/oauth2/authorize',
+    tokenUrl:          'https://api-ce.kroger.com/v1/connect/oauth2/token',
     scopes:            ['cart.basic:write', 'profile.compact'],
     supportsPKCE:      true,
     tokenAuthMethod:   'basic',
