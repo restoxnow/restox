@@ -34,7 +34,6 @@ export default function PrivacyPolicy() {
             <li>Name and email address when you create an account</li>
             <li>Shipping address(es) you add to your profile</li>
             <li>Household size and preferences you set</li>
-            <li>Retailer account credentials you choose to connect (stored encrypted)</li>
             <li>Retailer membership and rewards numbers</li>
             <li>Payment information processed securely through Stripe</li>
           </ul>
@@ -135,10 +134,11 @@ export default function PrivacyPolicy() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">7. Data Security</h2>
           <p>
             We use industry-standard security measures to protect your information, including TLS
-            encryption for data in transit and encryption at rest via Supabase. Retailer credentials
-            are stored encrypted. However, no method of transmission over the internet is 100% secure,
-            and we cannot guarantee absolute security. We encourage you to use a strong, unique
-            password and to enable two-factor authentication on your Google account.
+            encryption for data in transit and encryption at rest via Supabase. Retailer connections
+            use OAuth 2.0 — Restox never stores your retailer login credentials. However, no method
+            of transmission over the internet is 100% secure, and we cannot guarantee absolute
+            security. We encourage you to use a strong, unique password and to enable two-factor
+            authentication on your Google account.
           </p>
         </section>
 

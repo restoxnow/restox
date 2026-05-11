@@ -5,7 +5,7 @@ import Image from 'next/image'
 import {
   Search, ChevronDown, ChevronRight, CheckCircle, X,
   Loader2, AlertTriangle, Link2, Calendar, CheckCircle2, AlertCircle,
-  CreditCard, Info, Shield, PauseCircle,
+  CreditCard, Info, Shield, PauseCircle, Store,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import RetailerConnectModal from '@/components/dashboard/RetailerConnectModal'
@@ -22,7 +22,7 @@ interface Retailer {
   id: number
   name: string
   domain: string
-  credentialsOnly?: boolean
+  unsupported?: boolean
   subBrands?: string[]
 }
 
@@ -70,7 +70,7 @@ const CATEGORIES: Category[] = [
     label: 'Home Improvement',
     retailers: [
       { id: 4,  name: 'Home Depot', domain: 'homedepot.com' },
-      { id: 5,  name: "Lowe's",     domain: 'lowes.com', credentialsOnly: true },
+      { id: 5,  name: "Lowe's",     domain: 'lowes.com', unsupported: true },
     ],
   },
   {
@@ -78,8 +78,8 @@ const CATEGORIES: Category[] = [
     label: 'Grocery & Wholesale',
     retailers: [
       { id: 6,  name: 'Kroger',        domain: 'kroger.com', subBrands: ["Smith's", "Fry's"] },
-      { id: 7,  name: 'Costco',        domain: 'costco.com',    credentialsOnly: true },
-      { id: 8,  name: "Sam's Club",    domain: 'samsclub.com',  credentialsOnly: true },
+      { id: 7,  name: 'Costco',        domain: 'costco.com',    unsupported: true },
+      { id: 8,  name: "Sam's Club",    domain: 'samsclub.com',  unsupported: true },
       { id: 12, name: 'Instacart',     domain: 'instacart.com' },
       { id: 13, name: 'Albertsons',    domain: 'albertsons.com' },
       { id: 14, name: 'Stop & Shop',   domain: 'stopandshop.com' },
@@ -104,10 +104,10 @@ const CATEGORIES: Category[] = [
     id: 'office',
     label: 'Office & Business Supplies',
     retailers: [
-      { id: 11, name: 'Staples',              domain: 'staples.com',  credentialsOnly: true },
+      { id: 11, name: 'Staples',              domain: 'staples.com',  unsupported: true },
       { id: 16, name: 'Office Depot/OfficeMax', domain: 'officedepot.com' },
-      { id: 17, name: 'Uline',               domain: 'uline.com', credentialsOnly: true },
-      { id: 18, name: 'Grainger',            domain: 'grainger.com', credentialsOnly: true },
+      { id: 17, name: 'Uline',               domain: 'uline.com', unsupported: true },
+      { id: 18, name: 'Grainger',            domain: 'grainger.com', unsupported: true },
     ],
   },
 ]
@@ -180,12 +180,11 @@ function ConnectedRetailerLogo({ name }: { name: string }) {
 }
 
 const CONN_TYPE_BADGE: Record<string, string> = {
-  oauth:       'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
-  credentials: 'bg-gray-100 dark:bg-white/10 text-gray-500 dark:text-gray-400',
-  extension:   'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400',
+  oauth:     'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400',
+  extension: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400',
 }
 const CONN_TYPE_LABEL: Record<string, string> = {
-  oauth: 'OAuth', credentials: 'Credentials', extension: 'Extension',
+  oauth: 'OAuth', extension: 'Extension',
 }
 
 // ---------------------------------------------------------------------------
@@ -482,7 +481,9 @@ export default function RetailersPage() {
   const [dbRetailers, setDbRetailers]         = useState<ConnectedRetailer[]>([])
   const [loadingRetailers, setLoadingRetailers] = useState(true)
   const [selectedRetailer, setSelectedRetailer] = useState<Retailer | null>(null)
+  const [showUnsupportedFor, setShowUnsupportedFor] = useState<Retailer | null>(null)
   const [showRequestModal, setShowRequestModal] = useState(false)
+  const [requestModalInitialName, setRequestModalInitialName] = useState('')
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false)
   const [searchQuery, setSearchQuery]           = useState('')
   const [collapsed, setCollapsed]               = useState<Record<string, boolean>>(
@@ -732,6 +733,8 @@ export default function RetailersPage() {
                         onClick={() => {
                           if (alreadyConnected) {
                             connectedSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          } else if (r.unsupported) {
+                            setShowUnsupportedFor(r)
                           } else if (!bypassGates && dbRetailers.length >= caps.retailers) {
                             setShowUpgradePrompt(true)
                           } else {
@@ -784,13 +787,65 @@ export default function RetailersPage() {
       {selectedRetailer && (
         <RetailerConnectModal
           retailer={selectedRetailer}
-          defaultTab={selectedRetailer.credentialsOnly ? 'credentials' : 'oauth'}
+          defaultTab="oauth"
           onClose={() => setSelectedRetailer(null)}
           onConnected={handleConnected}
         />
       )}
+
+      {showUnsupportedFor && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#16213E] rounded-2xl w-full max-w-md shadow-2xl dark:shadow-black/60">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center text-sm font-bold font-heading text-gray-500 dark:text-gray-400">
+                  {showUnsupportedFor.name[0]}
+                </div>
+                <span className="font-heading font-semibold text-rx-navy dark:text-white">
+                  Connect {showUnsupportedFor.name}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowUnsupportedFor(null)}
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-6 py-6 flex flex-col items-center text-center gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-white/10 flex items-center justify-center">
+                <AlertCircle size={22} className="text-gray-500 dark:text-gray-400" />
+              </div>
+              <div>
+                <p className="font-heading font-semibold text-rx-navy dark:text-white mb-2">
+                  Not yet fully supported
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-body leading-relaxed">
+                  This retailer is not yet fully supported. We&apos;re working on a direct connection.
+                  You&apos;ll be notified when it&apos;s available.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setRequestModalInitialName(showUnsupportedFor.name)
+                  setShowUnsupportedFor(null)
+                  setShowRequestModal(true)
+                }}
+                className="w-full py-2.5 bg-rx-orange hover:bg-rx-orange-dark text-white font-semibold
+                  rounded-xl text-sm transition-colors font-body flex items-center justify-center gap-2"
+              >
+                <Store size={15} /> Request this retailer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showRequestModal && (
-        <RequestRetailerModal onClose={() => setShowRequestModal(false)} />
+        <RequestRetailerModal
+          initialRetailerName={requestModalInitialName}
+          onClose={() => { setShowRequestModal(false); setRequestModalInitialName('') }}
+        />
       )}
       {showUpgradePrompt && (
         <UpgradePromptModal

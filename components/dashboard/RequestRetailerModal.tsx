@@ -5,10 +5,11 @@ import { X, Store, Loader2, CheckCircle } from 'lucide-react'
 
 interface Props {
   onClose: () => void
+  initialRetailerName?: string
 }
 
-export default function RequestRetailerModal({ onClose }: Props) {
-  const [retailerName, setRetailerName] = useState('')
+export default function RequestRetailerModal({ onClose, initialRetailerName = '' }: Props) {
+  const [retailerName, setRetailerName] = useState(initialRetailerName)
   const [websiteUrl, setWebsiteUrl] = useState('')
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)

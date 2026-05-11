@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Zap, Puzzle, KeyRound, CheckCircle, Loader2, ShieldCheck, ExternalLink } from 'lucide-react'
-import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import { X, Zap, Puzzle, CheckCircle, Loader2, ShieldCheck } from 'lucide-react'
 
 // Retailers that have an OAuth flow at /api/retailers/oauth/[slug]
 // Keep in sync with OAUTH_CONFIGS in lib/retailer-oauth.ts
@@ -20,7 +19,7 @@ const OAUTH_SLUGS: Record<string, string> = {
   'Home Depot':  'homedepot',
 }
 
-type Tab = 'oauth' | 'extension' | 'credentials'
+type Tab = 'oauth' | 'extension'
 
 interface Props {
   retailer: { name: string; domain?: string }
@@ -29,52 +28,16 @@ interface Props {
   onConnected: (retailerName: string) => void
 }
 
-export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', onClose, onConnected }: Props) {
+export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', onClose }: Props) {
   const [tab, setTab] = useState<Tab>(defaultTab)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
   const [oauthLoading, setOAuthLoading] = useState(false)
-  const [error, setError] = useState('')
-  const supabase = createSupabaseBrowserClient()
 
   const oauthSlug = OAUTH_SLUGS[retailer.name] ?? null
 
-  const handleCredentialSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!username) { setError('Username is required'); return }
-    setError('')
-    setLoading(true)
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
-      const { error: dbError } = await supabase.from('retailers').insert({
-        user_id: user.id,
-        name: retailer.name,
-        connection_type: 'credentials',
-        connection_status: 'connected',
-      })
-      if (dbError) throw dbError
-
-      onConnected(retailer.name)
-      onClose()
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
-    { id: 'oauth',       label: 'OAuth',             icon: Zap },
-    { id: 'extension',   label: 'Browser Extension', icon: Puzzle },
-    { id: 'credentials', label: 'Credentials',       icon: KeyRound },
+    { id: 'oauth',     label: 'OAuth',             icon: Zap },
+    { id: 'extension', label: 'Browser Extension', icon: Puzzle },
   ]
-
-  const inputCls = `w-full px-4 py-2.5 border rounded-xl text-sm font-body
-    focus:outline-none focus:ring-2 focus:ring-rx-orange/30 focus:border-rx-orange
-    border-gray-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-gray-300`
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -125,7 +88,7 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
                   </p>
                   <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
                     You&apos;ll be redirected to {retailer.name} to authorize Restox.
-                    Your credentials are never stored — only a secure OAuth token.
+                    Restox never stores your login credentials — only a secure OAuth token.
                   </p>
                 </div>
 
@@ -162,15 +125,15 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
                     OAuth Not Available
                   </p>
                   <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
-                    {retailer.name} does not offer a public OAuth API.
-                    Use the <strong>Credentials</strong> or <strong>Browser Extension</strong> tab instead.
+                    {retailer.name} does not offer a public OAuth API yet.
+                    Use the <strong>Browser Extension</strong> tab to detect and add products from this retailer.
                   </p>
                 </div>
                 <button
-                  onClick={() => setTab('credentials')}
+                  onClick={() => setTab('extension')}
                   className="text-xs text-rx-orange hover:text-rx-orange-dark font-semibold font-body transition-colors"
                 >
-                  Switch to Credentials →
+                  Use Browser Extension →
                 </button>
               </div>
             )
@@ -208,50 +171,6 @@ export default function RetailerConnectModal({ retailer, defaultTab = 'oauth', o
                 {' '}and the extension will connect automatically.
               </p>
             </div>
-          )}
-
-          {tab === 'credentials' && (
-            <form onSubmit={handleCredentialSave} className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-xl p-3 text-xs text-blue-700 dark:text-blue-300 font-body">
-                🔒 Your credentials are encrypted in transit and never stored in plain text.
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
-                  {retailer.name} username or email
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  placeholder="your@email.com"
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 font-body mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className={inputCls}
-                />
-              </div>
-              {error && <p className="text-red-500 text-xs font-body">{error}</p>}
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 bg-rx-orange hover:bg-rx-orange-dark text-white font-semibold
-                  rounded-xl text-sm transition-colors font-body disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {loading
-                  ? <><Loader2 size={15} className="animate-spin" /> Connecting…</>
-                  : <><CheckCircle size={15} /> Connect {retailer.name}</>
-                }
-              </button>
-            </form>
           )}
         </div>
       </div>
