@@ -87,8 +87,8 @@ export default function Hero({ waitlistCount }: HeroProps) {
 
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-          <a href="/auth/signup" className="btn-primary text-base shadow-warm-lg">
-            Get started free
+          <a href="#waitlist" className="btn-primary text-base shadow-warm-lg">
+            Join the waitlist
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
             </svg>
