@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { CheckCircle, Circle, Store, Puzzle, Package, X, Loader2, PartyPopper } from 'lucide-react'
+import { CheckCircle, Circle, Store, Puzzle, Package, X, Loader2, PartyPopper, User } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
 import { useExtensionDetected } from '@/hooks/useExtensionDetected'
 
@@ -14,6 +14,7 @@ interface Props {
 
 export default function OnboardingChecklist({ onDismiss }: Props) {
   const extensionDetected = useExtensionDetected()
+  const [hasProfile, setHasProfile]   = useState(false)
   const [hasRetailer, setHasRetailer] = useState(false)
   const [hasProduct, setHasProduct]   = useState(false)
   const [loading, setLoading]         = useState(true)
@@ -27,7 +28,12 @@ export default function OnboardingChecklist({ onDismiss }: Props) {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
-      const [rRes, pRes] = await Promise.all([
+      const [profileRes, rRes, pRes] = await Promise.all([
+        supabase
+          .from('users')
+          .select('full_name')
+          .eq('id', user.id)
+          .single(),
         supabase
           .from('retailers')
           .select('id', { count: 'exact', head: true })
@@ -38,6 +44,8 @@ export default function OnboardingChecklist({ onDismiss }: Props) {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', user.id),
       ])
+      const name = (profileRes.data as any)?.full_name
+      setHasProfile(typeof name === 'string' && name.trim().length > 0)
       setHasRetailer((rRes.count ?? 0) > 0)
       setHasProduct((pRes.count ?? 0) > 0)
       setLoading(false)
@@ -46,7 +54,7 @@ export default function OnboardingChecklist({ onDismiss }: Props) {
   }, [])
 
   const extReady = extensionDetected === true
-  const allDone  = !loading && extReady && hasRetailer && hasProduct
+  const allDone  = !loading && hasProfile && extReady && hasRetailer && hasProduct
 
   // Auto-dismiss when all steps complete
   useEffect(() => {
@@ -72,9 +80,20 @@ export default function OnboardingChecklist({ onDismiss }: Props) {
     onDismiss()
   }
 
-  const completedCount = [extReady, hasRetailer, hasProduct].filter(Boolean).length
+  const completedCount = [hasProfile, extReady, hasRetailer, hasProduct].filter(Boolean).length
 
   const STEPS = [
+    {
+      label: 'Complete your profile',
+      description: 'Add your name and household size to personalize your experience.',
+      done: hasProfile,
+      href: '/dashboard/settings?tab=profile',
+      cta: 'Complete your profile →',
+      external: false,
+      Icon: User,
+      activeColor: 'bg-green-50 dark:bg-green-900/20',
+      activeIcon: 'text-green-600 dark:text-green-400',
+    },
     {
       label: 'Install the Restox extension',
       description: 'Add products from any supported retailer with one click.',
@@ -137,7 +156,7 @@ export default function OnboardingChecklist({ onDismiss }: Props) {
           <p className="text-xs text-gray-500 dark:text-gray-400 font-body mt-0.5">
             {loading
               ? 'Loading…'
-              : `${completedCount} of 3 steps complete`}
+              : `${completedCount} of 4 steps complete`}
           </p>
         </div>
         <button
