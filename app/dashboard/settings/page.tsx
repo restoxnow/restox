@@ -286,7 +286,7 @@ function SettingsContent() {
         <p className="text-gray-500 dark:text-gray-400 text-sm mt-1 font-body">Manage your account, billing, and preferences</p>
       </div>
 
-      {showWelcome && !onboardingDismissed && (
+      {!onboardingDismissed && (
         <OnboardingChecklist onDismiss={() => setOnboardingDismissed(true)} />
       )}
 
