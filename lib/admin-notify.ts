@@ -29,7 +29,6 @@ async function sendAdminEmail(subject: string, body: string): Promise<void> {
 
 export type AdminNotifyPayload =
   | { type: 'retailer_request'; userEmail: string; retailerName: string; websiteUrl?: string | null; reason?: string | null }
-  | { type: 'waitlist_signup';  email: string; name: string; userType: string }
   | { type: 'feedback';         userEmail: string; category: string; message: string; pageUrl?: string | null }
   | { type: 'new_user';         email: string; totalUsers: number }
 
@@ -63,17 +62,6 @@ export async function notifyAdmin(payload: AdminNotifyPayload): Promise<void> {
         break
       }
 
-      case 'waitlist_signup': {
-        const text = [
-          '📬 *New waitlist signup*',
-          `Email: ${payload.email}`,
-          `Name: ${payload.name}`,
-          `Type: ${payload.userType}`,
-          `Time: ${ts}`,
-        ].join('\n')
-        await postSlack(text).catch(err => console.warn('[admin-notify] slack error:', err))
-        break
-      }
 
       case 'feedback': {
         const truncated = payload.message.length > 500
