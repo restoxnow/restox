@@ -285,14 +285,14 @@ function SettingsContent() {
         </div>
       )}
 
-      <div className="flex gap-6 items-start">
-        {/* Section nav */}
-        <nav className="w-48 shrink-0 bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none overflow-hidden">
+      <div className="flex flex-col md:flex-row gap-6 items-start">
+        {/* Section nav — full width on mobile, fixed sidebar on desktop */}
+        <nav className="w-full md:w-48 md:shrink-0 bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none overflow-hidden">
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setSection(id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-body font-medium text-left transition-colors border-l-2
+              className={`w-full flex items-center gap-3 px-4 py-3 min-h-[44px] text-sm font-body font-medium text-left transition-colors border-l-2
                 ${section === id
                   ? 'bg-rx-orange-light dark:bg-rx-orange/10 text-rx-orange border-rx-orange'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 border-transparent'
@@ -304,8 +304,8 @@ function SettingsContent() {
           ))}
         </nav>
 
-        {/* Content panels */}
-        <div className="flex-1 min-w-0">
+        {/* Content panels — full width on mobile */}
+        <div className="flex-1 min-w-0 w-full">
           {section === 'profile' && (
             <div className="bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 space-y-5">
               <h2 className="font-heading font-semibold text-rx-navy dark:text-white">Account & Profile</h2>
@@ -594,7 +594,7 @@ function SettingsContent() {
                 )}
 
                 {/* Monthly/Annual toggle */}
-                <div className="flex items-center gap-3">
+                <div className="flex items-center flex-wrap gap-3">
                   <span className={`text-xs font-semibold font-body ${billingPeriod === 'monthly' ? 'text-rx-navy dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>Monthly</span>
                   <button
                     onClick={() => setBillingPeriod(p => p === 'monthly' ? 'annual' : 'monthly')}
@@ -764,7 +764,7 @@ function SettingsContent() {
               </div>
 
               {/* Team Members — Business only */}
-              <div className={`relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6 ${!isBusinessOnly ? 'opacity-60' : ''}`}>
+              <div className="relative bg-white dark:bg-[#16213E] rounded-xl border border-gray-100 dark:border-white/10 shadow-sm dark:shadow-none p-6">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Users size={16} className="text-gray-400" />
@@ -779,10 +779,18 @@ function SettingsContent() {
                 {isBusinessOnly ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400 font-body">Invite team members to share your Restox workspace.</p>
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 font-body">
-                    Multi-user seats and approval workflows are available on the Business plan.{' '}
-                    <a href="/dashboard/settings/billing" className="text-rx-orange hover:underline">Upgrade →</a>
-                  </p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 font-body">
+                      Upgrade to Business to invite team members and share your Restox workspace.
+                    </p>
+                    <a
+                      href="/dashboard/settings?tab=billing"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-rx-orange text-white text-xs font-semibold rounded-lg hover:bg-rx-orange-dark transition-colors font-body"
+                    >
+                      <Lock size={11} />
+                      Upgrade to Business — $79/mo
+                    </a>
+                  </div>
                 )}
               </div>
 
