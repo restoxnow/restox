@@ -374,7 +374,7 @@ function ConnectedRetailerCard({
       <button
         onClick={openPayment}
         className="w-full flex items-center gap-2 px-4 py-2.5 border-t border-gray-100 dark:border-white/10
-          bg-gray-50 dark:bg-white/3 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left"
+          bg-gray-50 dark:bg-white/10 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-left"
       >
         <CreditCard size={13} className="text-gray-400 dark:text-gray-500 shrink-0" />
         <span className="text-xs font-body text-gray-500 dark:text-gray-400 flex-1">
@@ -476,7 +476,7 @@ function ConnectedRetailerCard({
             <div className="space-y-2">
               {methods.length === 1 ? (
                 // Single card: compact display with Edit + Remove
-                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/3">
+                <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/10">
                   <CreditCard size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
                   <p className="text-xs font-semibold text-gray-800 dark:text-white font-body flex-1">
                     {methods[0].brand ?? 'Card'} ••••{methods[0].last4}
