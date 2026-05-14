@@ -478,7 +478,7 @@ function ConnectedRetailerCard({
                 // Single card: compact display with Edit + Remove
                 <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/3">
                   <CreditCard size={14} className="text-gray-400 dark:text-gray-500 shrink-0" />
-                  <p className="text-xs font-semibold text-rx-navy dark:text-white font-body flex-1">
+                  <p className="text-xs font-semibold text-gray-800 dark:text-white font-body flex-1">
                     {methods[0].brand ?? 'Card'} ••••{methods[0].last4}
                   </p>
                   <button
@@ -487,15 +487,15 @@ function ConnectedRetailerCard({
                       setEntryLast4(methods[0].last4 ?? '')
                       setEditingPayment(true)
                     }}
-                    className="text-xs text-rx-orange hover:text-rx-orange-dark font-semibold font-body transition-colors"
+                    className="text-xs text-rx-orange hover:text-rx-orange-dark dark:text-rx-orange dark:hover:text-rx-orange-dark font-semibold font-body transition-colors"
                   >
                     Edit
                   </button>
-                  <span className="text-gray-200 dark:text-white/10">|</span>
+                  <span className="text-gray-300 dark:text-white/10">|</span>
                   <button
                     onClick={() => handleRemove(methods[0])}
                     disabled={removing === methods[0].id}
-                    className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 font-body transition-colors disabled:opacity-60 flex items-center gap-1"
+                    className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-body transition-colors disabled:opacity-60 flex items-center gap-1"
                   >
                     {removing === methods[0].id ? <Loader2 size={10} className="animate-spin" /> : null}
                     Remove
@@ -522,7 +522,7 @@ function ConnectedRetailerCard({
                         className="accent-rx-orange"
                       />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-rx-navy dark:text-white font-body">
+                        <p className="text-xs font-semibold text-gray-800 dark:text-white font-body">
                           {m.brand ?? 'Card'} ••••{m.last4}
                           {m.is_default && (
                             <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800/30">
@@ -539,7 +539,7 @@ function ConnectedRetailerCard({
                       <button
                         onClick={e => { e.preventDefault(); handleRemove(m) }}
                         disabled={removing === m.id}
-                        className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 font-body transition-colors disabled:opacity-60 flex items-center gap-1"
+                        className="text-xs text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 font-body transition-colors disabled:opacity-60 flex items-center gap-1"
                       >
                         {removing === m.id ? <Loader2 size={10} className="animate-spin" /> : null}
                         Remove
