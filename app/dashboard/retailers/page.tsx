@@ -903,7 +903,7 @@ export default function RetailersPage() {
         return (
           <div key={cat.id}>
             {catIdx === 1 && (
-              <AdSlot slot="retailers-rectangle" format="rectangle" className="mb-6" />
+              <AdSlot slot="dashboard" format="rectangle" className="mb-6" />
             )}
             <button
               onClick={() => toggleCategory(cat.id)}

@@ -455,7 +455,7 @@ export default function SpendIntelligencePage() {
           {/* Ad placeholder */}
           <div className="flex justify-center">
             <AdSlot
-              slot="spend-intelligence-video"
+              slot="ai-preview"
               format="video"
               videoLabel="Watch a short ad to preview this feature"
             />

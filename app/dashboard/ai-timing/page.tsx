@@ -610,7 +610,7 @@ export default function AITimingPage() {
         {/* Ad placeholder */}
         <div className="flex justify-center">
           <AdSlot
-            slot="ai-timing-video"
+            slot="ai-preview"
             format="video"
             videoLabel="Watch a short ad to preview this feature"
           />

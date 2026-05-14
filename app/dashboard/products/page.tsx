@@ -802,7 +802,7 @@ export default function ProductsPage() {
 
       {/* Ad: rectangle after product list */}
       {!loading && products.length > 0 && (
-        <AdSlot slot="products-rectangle" format="rectangle" className="py-2" />
+        <AdSlot slot="dashboard" format="rectangle" className="py-2" />
       )}
 
       {/* Add product modal */}

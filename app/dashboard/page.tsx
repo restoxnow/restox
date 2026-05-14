@@ -278,7 +278,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ---- Ad: banner between stats and upcoming orders ---- */}
-      <AdSlot slot="dashboard-home-banner" format="banner" className="w-full" />
+      <AdSlot slot="dashboard" format="banner" className="w-full" />
 
       {/* ---- Extension nudge card ---- */}
       {!nudgeDismissed && extensionDetected === false && (stats?.retailers ?? 0) >= 1 && (

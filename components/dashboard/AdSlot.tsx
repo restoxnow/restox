@@ -1,32 +1,56 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useUser } from '@/contexts/UserContext'
+import { useUserTier } from '@/contexts/UserContext'
+
+// ---------------------------------------------------------------------------
+// AdSlot — renders real AdSense units for free-tier users only.
+// Paid users (Consumer and above) and admins see nothing.
+// ---------------------------------------------------------------------------
+
+const AD_CLIENT = 'ca-pub-5385038600205472'
+
+// Maps logical slot names to AdSense data-ad-slot IDs
+const SLOT_IDS: Record<string, string> = {
+  'dashboard':  '9606669535',
+  'ai-preview': '7135584712',
+}
 
 type AdFormat = 'banner' | 'rectangle' | 'video'
 
 interface Props {
   slot: string
-  format: AdFormat
-  adClient?: string
-  adSlot?: string
+  format?: AdFormat
   className?: string
   videoLabel?: string
+  // Legacy — ignored; slot name now determines the AdSense slot ID
+  adClient?: string
+  adSlot?: string
 }
 
-const FORMAT_SIZE: Record<AdFormat, { width: number; height: number; label: string }> = {
-  banner:    { width: 728, height: 90,  label: '728×90' },
-  rectangle: { width: 300, height: 250, label: '300×250' },
-  video:     { width: 480, height: 270, label: '480×270' },
-}
+export default function AdSlot({ slot, format = 'rectangle', className = '', videoLabel }: Props) {
+  const { isConsumerOrAbove } = useUserTier()
+  const pushed = useRef(false)
 
-export default function AdSlot({ slot, format, adClient, adSlot, className = '', videoLabel }: Props) {
-  const { hasProAccess } = useUser()
+  // Push to adsbygoogle once per mount, but only for free-tier users
+  useEffect(() => {
+    if (isConsumerOrAbove || pushed.current) return
+    pushed.current = true
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(window as any).adsbygoogle = (window as any).adsbygoogle || []
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ;(window as any).adsbygoogle.push({})
+    } catch {
+      // AdSense script may not have loaded yet — silently skip
+    }
+  }, [isConsumerOrAbove])
 
-  // Only show ads to free-tier users (not Pro or admin)
-  if (hasProAccess) return null
+  // Paid users and admins are ad-free
+  if (isConsumerOrAbove) return null
 
-  const { width, height, label } = FORMAT_SIZE[format]
+  const adSlotId = SLOT_IDS[slot] ?? SLOT_IDS['dashboard']
 
   return (
     <div className={`flex flex-col items-center gap-1.5 ${className}`}>
@@ -34,22 +58,16 @@ export default function AdSlot({ slot, format, adClient, adSlot, className = '',
         <p className="text-xs text-gray-400 dark:text-gray-500 font-body">{videoLabel}</p>
       )}
 
-      {/* AdSense slot — swap placeholder div for <ins> once approved */}
-      <div
-        style={{ width, height, maxWidth: '100%' }}
-        className="relative bg-gray-100 dark:bg-white/5 border border-dashed border-gray-200 dark:border-white/10 rounded-lg flex flex-col items-center justify-center overflow-hidden"
-        data-ad-slot={slot}
-        data-ad-client={adClient}
-        data-ad-adsense-slot={adSlot}
-      >
-        {/* Placeholder content — remove when real AdSense <ins> tags go in */}
-        <span className="text-[10px] font-bold tracking-widest uppercase text-gray-300 dark:text-white/20 font-body select-none">
-          Advertisement
-        </span>
-        <span className="text-[9px] text-gray-200 dark:text-white/10 font-body select-none mt-0.5">{label}</span>
-      </div>
+      <ins
+        className="adsbygoogle"
+        style={{ display: 'block' }}
+        data-ad-client={AD_CLIENT}
+        data-ad-slot={adSlotId}
+        data-ad-format="auto"
+        data-full-width-responsive="true"
+      />
 
-      {/* Upgrade nudge */}
+      {/* Upgrade nudge shown below the ad */}
       <p className="text-[10px] text-gray-300 dark:text-white/20 font-body">
         Remove ads —{' '}
         <Link
