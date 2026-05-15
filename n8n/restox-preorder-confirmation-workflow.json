@@ -4,14 +4,22 @@
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "hours", "hoursInterval": 1 }]
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
         }
       },
       "id": "trigger",
       "name": "Every Hour",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [260, 300]
+      "position": [
+        260,
+        300
+      ]
     },
     {
       "parameters": {
@@ -20,18 +28,39 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "apikey",        "value": "SUPABASE_SERVICE_ROLE_KEY_HERE" },
-            { "name": "Authorization", "value": "Bearer SUPABASE_SERVICE_ROLE_KEY_HERE" }
+            {
+              "name": "apikey",
+              "value": "SUPABASE_SERVICE_ROLE_KEY_HERE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY_HERE"
+            }
           ]
         },
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "select",          "value": "id,user_id,product_name,retailer,next_order_date" },
-            { "name": "is_suspended",    "value": "eq.false" },
-            { "name": "status",          "value": "eq.active" },
-            { "name": "next_order_date", "value": "=gte.{{ DateTime.now().plus({hours: 23}).toISODate() }}" },
-            { "name": "next_order_date", "value": "=lte.{{ DateTime.now().plus({hours: 25}).toISODate() }}" }
+            {
+              "name": "select",
+              "value": "id,user_id,product_name,retailer,next_order_date"
+            },
+            {
+              "name": "is_suspended",
+              "value": "eq.false"
+            },
+            {
+              "name": "status",
+              "value": "eq.active"
+            },
+            {
+              "name": "next_order_date",
+              "value": "=gte.{{ DateTime.now().plus({hours: 23}).toISODate() }}"
+            },
+            {
+              "name": "next_order_date",
+              "value": "=lte.{{ DateTime.now().plus({hours: 25}).toISODate() }}"
+            }
           ]
         },
         "options": {}
@@ -40,7 +69,10 @@
       "name": "Get Upcoming Schedules",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [480, 300],
+      "position": [
+        480,
+        300
+      ],
       "continueOnFail": true
     },
     {
@@ -52,34 +84,64 @@
       "name": "Split Into Schedules",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [700, 300]
+      "position": [
+        700,
+        300
+      ]
     },
     {
       "parameters": {
-        "jsCode": "const crypto = require('crypto');\n\nconst SUPABASE_URL = 'https://vjptwvubebxjjkxkzqqe.supabase.co';\nconst SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'SUPABASE_SERVICE_ROLE_KEY_HERE';\nconst SENDGRID_KEY = process.env.SENDGRID_API_KEY           || 'SENDGRID_API_KEY_HERE';\nconst SITE_URL     = 'https://restox.net';\n\nconst sbHeaders = {\n  'apikey':        SUPABASE_KEY,\n  'Authorization': 'Bearer ' + SUPABASE_KEY,\n  'Content-Type':  'application/json',\n};\n\nfunction signOrderToken(scheduleId, action) {\n  const data    = scheduleId + ':' + action;\n  const payload = Buffer.from(data).toString('base64url');\n  const sig     = crypto.createHmac('sha256', SUPABASE_KEY).update(data).digest('hex').slice(0, 32);\n  return payload + '.' + sig;\n}\n\nconst schedule    = $input.first().json;\nconst scheduleId  = schedule.id;\nconst userId      = schedule.user_id;\nconst productName = schedule.product_name || 'your product';\nconst retailer    = schedule.retailer     || 'your retailer';\nconst orderDate   = schedule.next_order_date; // YYYY-MM-DD\n\nif (!scheduleId || !userId || !orderDate) return [];\n\n// ── Step 1: Check if already notified ────────────────────────────────────────\nconst checkUrl = SUPABASE_URL + '/rest/v1/order_confirmations'\n  + '?schedule_id=eq.'          + encodeURIComponent(scheduleId)\n  + '&scheduled_order_date=eq.' + orderDate\n  + '&status=eq.pending'\n  + '&select=id&limit=1';\n\nlet existing = [];\ntry {\n  const res = await $helpers.httpRequest({ method: 'GET', url: checkUrl, headers: sbHeaders });\n  existing = Array.isArray(res) ? res : [];\n} catch (e) { existing = []; }\n\nif (existing.length > 0) {\n  return [{ json: { ok: false, reason: 'already_notified', scheduleId } }];\n}\n\n// ── Step 2: Create order_confirmation row ────────────────────────────────────\ntry {\n  await $helpers.httpRequest({\n    method:  'POST',\n    url:     SUPABASE_URL + '/rest/v1/order_confirmations',\n    headers: Object.assign({}, sbHeaders, { 'Prefer': 'return=minimal' }),\n    body:    JSON.stringify({\n      schedule_id:          scheduleId,\n      user_id:              userId,\n      status:               'pending',\n      scheduled_order_date: orderDate,\n    }),\n  });\n} catch (e) { /* non-fatal — dedup prevents duplicates */ }\n\n// ── Step 3: Get user email ────────────────────────────────────────────────────\nlet userEmail = null;\ntry {\n  const userRows = await $helpers.httpRequest({\n    method:  'GET',\n    url:     SUPABASE_URL + '/rest/v1/users?id=eq.' + encodeURIComponent(userId) + '&select=email&limit=1',\n    headers: sbHeaders,\n  });\n  userEmail = Array.isArray(userRows) && userRows[0] ? userRows[0].email : null;\n} catch (e) { userEmail = null; }\n\nif (!userEmail) {\n  return [{ json: { ok: false, reason: 'no_email', scheduleId } }];\n}\n\n// ── Step 4: Build HMAC-signed confirm/skip links ─────────────────────────────\nconst confirmToken = signOrderToken(scheduleId, 'confirm');\nconst skipToken    = signOrderToken(scheduleId, 'skip');\nconst confirmUrl   = SITE_URL + '/api/orders/confirm/' + scheduleId + '?token=' + encodeURIComponent(confirmToken);\nconst skipUrl      = SITE_URL + '/api/orders/skip/'    + scheduleId + '?token=' + encodeURIComponent(skipToken);\n\nconst formattedDate = new Date(orderDate + 'T12:00:00Z').toLocaleDateString('en-US', {\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n});\n\n// ── Step 5: Send confirmation email via SendGrid ──────────────────────────────\nconst htmlBody = [\n  '<p>Hi,</p>',\n  '<p>Your scheduled order for <strong>' + productName + '</strong> from <strong>' + retailer + '</strong>',\n  ' is coming up on <strong>' + formattedDate + '</strong>.</p>',\n  '<p style=\"margin:24px 0;\">',\n  '  <a href=\"' + confirmUrl + '\" style=\"display:inline-block;padding:12px 24px;background:#F47C20;color:white;border-radius:8px;text-decoration:none;font-weight:bold;\">Confirm this order &#8594;</a>',\n  '</p>',\n  '<p>',\n  '  <a href=\"' + skipUrl + '\" style=\"display:inline-block;padding:12px 24px;background:#6b7280;color:white;border-radius:8px;text-decoration:none;font-weight:bold;\">Skip this order &#8594;</a>',\n  '</p>',\n  '<p style=\"color:#6b7280;font-size:14px;\">If you don\\'t respond, the order will be confirmed automatically.</p>',\n  '<p>\\u2014 The Restox Team</p>',\n].join('\\n');\n\nconst textBody = [\n  'Hi,',\n  '',\n  'Your scheduled order for ' + productName + ' from ' + retailer + ' is coming up on ' + formattedDate + '.',\n  '',\n  'Confirm this order:',\n  confirmUrl,\n  '',\n  'Skip this order:',\n  skipUrl,\n  '',\n  \"If you don't respond, the order will be confirmed automatically.\",\n  '',\n  '\\u2014 The Restox Team',\n].join('\\n');\n\ntry {\n  await $helpers.httpRequest({\n    method:  'POST',\n    url:     'https://api.sendgrid.com/v3/mail/send',\n    headers: {\n      'Authorization': 'Bearer ' + SENDGRID_KEY,\n      'Content-Type':  'application/json',\n    },\n    body: JSON.stringify({\n      personalizations: [{ to: [{ email: userEmail }] }],\n      from:    { email: 'orders@restox.net', name: 'Restox' },\n      subject: 'Your Restox order is coming up \\u2014 confirm or skip',\n      content: [\n        { type: 'text/plain', value: textBody },\n        { type: 'text/html',  value: htmlBody },\n      ],\n    }),\n  });\n} catch (e) { /* email failure is non-fatal — confirmation row already created */ }\n\n// ── Step 6: Log to notification_log ──────────────────────────────────────────\ntry {\n  await $helpers.httpRequest({\n    method:  'POST',\n    url:     SUPABASE_URL + '/rest/v1/notification_log',\n    headers: Object.assign({}, sbHeaders, { 'Prefer': 'return=minimal' }),\n    body:    JSON.stringify({\n      user_id:           userId,\n      schedule_id:       scheduleId,\n      product_name:      productName,\n      retailer_name:     retailer,\n      notification_type: 'pre_order_confirmation',\n      channel:           'email',\n      status:            'sent',\n    }),\n  });\n} catch (e) { /* non-fatal */ }\n\nreturn [{ json: { ok: true, scheduleId, userEmail, orderDate } }];"
+        "jsCode": "// ─────────────────────────────────────────────────────────────────────────────\n// Restox — Process Schedule Code Node\n// Paste this entire file into the \"Process Schedule\" Code node in n8n.\n//\n// Retailer routing:\n//   Kroger  → \"we'll fill your cart automatically\" — no Confirm/Skip buttons\n//   Amazon  → \"tap Confirm for an Add-to-Cart link\" — Confirm + Skip buttons\n//   Others  → \"tap Confirm for a direct product link\" — Confirm + Skip buttons\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst crypto = require('crypto');\n\nconst SUPABASE_URL = 'https://vjptwvubebxjjkxkzqqe.supabase.co';\nconst SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'SUPABASE_SERVICE_ROLE_KEY_HERE';\nconst SENDGRID_KEY = process.env.SENDGRID_API_KEY           || 'SENDGRID_API_KEY_HERE';\nconst SITE_URL     = 'https://restox.net';\n\nconst sbHeaders = {\n  'apikey':        SUPABASE_KEY,\n  'Authorization': 'Bearer ' + SUPABASE_KEY,\n  'Content-Type':  'application/json',\n};\n\nfunction signOrderToken(scheduleId, action) {\n  const data    = scheduleId + ':' + action;\n  const payload = Buffer.from(data).toString('base64url');\n  const sig     = crypto.createHmac('sha256', SUPABASE_KEY).update(data).digest('hex').slice(0, 32);\n  return payload + '.' + sig;\n}\n\n// ── Retailer detection ────────────────────────────────────────────────────────\nfunction retailerType(retailerName) {\n  if (!retailerName) return 'other';\n  const r = retailerName.toLowerCase().trim();\n  if (r === 'kroger') return 'kroger';\n  if (r === 'amazon') return 'amazon';\n  return 'other';\n}\n\n// ── Retailer-specific email content ──────────────────────────────────────────\nfunction buildEmailContent({ type, productName, retailer, formattedDate, confirmUrl, skipUrl, schedulesUrl }) {\n  const ctaStyle   = 'display:inline-block;padding:12px 24px;background:#F47C20;color:white;border-radius:8px;text-decoration:none;font-weight:bold;';\n  const skipStyle  = 'display:inline-block;padding:12px 24px;background:#6b7280;color:white;border-radius:8px;text-decoration:none;font-weight:bold;';\n  const mutedStyle = 'color:#9ca3af;font-size:13px;';\n\n  if (type === 'kroger') {\n    // No Confirm/Skip — cart fill is fully automatic on order date.\n    const subject  = 'Your Kroger reorder is coming up — we’ll fill your cart automatically';\n    const htmlBody = [\n      '<p>Hi,</p>',\n      '<p>Your scheduled reorder for <strong>' + productName + '</strong> is due on <strong>' + formattedDate + '</strong>.</p>',\n      '<p>Restox will automatically add it to your Kroger cart. You’ll receive a notification when your cart is ready to checkout.</p>',\n      '<p style=\"margin:24px 0;\">',\n      '  <a href=\"' + schedulesUrl + '\" style=\"' + ctaStyle + '\">View your schedule →</a>',\n      '</p>',\n      '<p style=\"' + mutedStyle + '\">No action needed — we’ll handle the cart automatically.</p>',\n      '<p>— The Restox Team</p>',\n    ].join('\\n');\n    const textBody = [\n      'Hi,',\n      '',\n      'Your scheduled reorder for ' + productName + ' is due on ' + formattedDate + '.',\n      '',\n      'Restox will automatically add it to your Kroger cart. You’ll receive a notification when your cart is ready to checkout.',\n      '',\n      'View your schedule:',\n      schedulesUrl,\n      '',\n      'No action needed — we’ll handle the cart automatically.',\n      '',\n      '— The Restox Team',\n    ].join('\\n');\n    return { subject, htmlBody, textBody };\n  }\n\n  if (type === 'amazon') {\n    const subject  = 'Your Amazon reorder is coming up — cart link incoming';\n    const htmlBody = [\n      '<p>Hi,</p>',\n      '<p>Your scheduled reorder for <strong>' + productName + '</strong> from <strong>Amazon</strong> is due on <strong>' + formattedDate + '</strong>.</p>',\n      '<p>Tap Confirm below and we’ll send you a direct Add-to-Cart link.</p>',\n      '<p style=\"margin:24px 0;\">',\n      '  <a href=\"' + confirmUrl + '\" style=\"' + ctaStyle + '\">Confirm this order →</a>',\n      '</p>',\n      '<p>',\n      '  <a href=\"' + skipUrl + '\" style=\"' + skipStyle + '\">Skip this order →</a>',\n      '</p>',\n      '<p style=\"' + mutedStyle + '\">If you don’t respond, the order will be confirmed automatically.</p>',\n      '<p>— The Restox Team</p>',\n    ].join('\\n');\n    const textBody = [\n      'Hi,',\n      '',\n      'Your scheduled reorder for ' + productName + ' from Amazon is due on ' + formattedDate + '.',\n      '',\n      'Tap Confirm below and we’ll send you a direct Add-to-Cart link.',\n      '',\n      'Confirm this order:',\n      confirmUrl,\n      '',\n      'Skip this order:',\n      skipUrl,\n      '',\n      'If you don’t respond, the order will be confirmed automatically.',\n      '',\n      '— The Restox Team',\n    ].join('\\n');\n    return { subject, htmlBody, textBody };\n  }\n\n  // ── Generic (all other retailers) ─────────────────────────────────────────\n  const subject  = 'Your reorder of ' + productName + ' is coming up';\n  const htmlBody = [\n    '<p>Hi,</p>',\n    '<p>Your scheduled reorder for <strong>' + productName + '</strong> from <strong>' + retailer + '</strong> is due on <strong>' + formattedDate + '</strong>.</p>',\n    '<p>Tap Confirm to get a direct link to the product page so you can add it to your cart and checkout.</p>',\n    '<p style=\"margin:24px 0;\">',\n    '  <a href=\"' + confirmUrl + '\" style=\"' + ctaStyle + '\">Confirm this order →</a>',\n    '</p>',\n    '<p>',\n    '  <a href=\"' + skipUrl + '\" style=\"' + skipStyle + '\">Skip this order →</a>',\n    '</p>',\n    '<p style=\"' + mutedStyle + '\">If you don’t respond, the order will be confirmed automatically.</p>',\n    '<p>— The Restox Team</p>',\n  ].join('\\n');\n  const textBody = [\n    'Hi,',\n    '',\n    'Your scheduled reorder for ' + productName + ' from ' + retailer + ' is due on ' + formattedDate + '.',\n    '',\n    'Tap Confirm to get a direct link to the product page so you can add it to your cart and checkout.',\n    '',\n    'Confirm this order:',\n    confirmUrl,\n    '',\n    'Skip this order:',\n    skipUrl,\n    '',\n    'If you don’t respond, the order will be confirmed automatically.',\n    '',\n    '— The Restox Team',\n  ].join('\\n');\n  return { subject, htmlBody, textBody };\n}\n\n// ─────────────────────────────────────────────────────────────────────────────\n// Main logic\n// ─────────────────────────────────────────────────────────────────────────────\n\nconst schedule    = $input.first().json;\nconst scheduleId  = schedule.id;\nconst userId      = schedule.user_id;\nconst productName = schedule.product_name || 'your product';\nconst retailer    = schedule.retailer     || 'your retailer';\nconst orderDate   = schedule.next_order_date; // YYYY-MM-DD\n\nif (!scheduleId || !userId || !orderDate) return [];\n\n// ── Step 1: Check if already notified ────────────────────────────────────────\nconst checkUrl = SUPABASE_URL + '/rest/v1/order_confirmations'\n  + '?schedule_id=eq.'          + encodeURIComponent(scheduleId)\n  + '&scheduled_order_date=eq.' + orderDate\n  + '&status=eq.pending'\n  + '&select=id&limit=1';\n\nlet existing = [];\ntry {\n  const res = await $helpers.httpRequest({ method: 'GET', url: checkUrl, headers: sbHeaders });\n  existing = Array.isArray(res) ? res : [];\n} catch (e) { existing = []; }\n\nif (existing.length > 0) {\n  return [{ json: { ok: false, reason: 'already_notified', scheduleId } }];\n}\n\n// ── Step 2: Create order_confirmation row ─────────────────────────────────────\ntry {\n  await $helpers.httpRequest({\n    method:  'POST',\n    url:     SUPABASE_URL + '/rest/v1/order_confirmations',\n    headers: Object.assign({}, sbHeaders, { 'Prefer': 'return=minimal' }),\n    body:    JSON.stringify({\n      schedule_id:          scheduleId,\n      user_id:              userId,\n      status:               'pending',\n      scheduled_order_date: orderDate,\n    }),\n  });\n} catch (e) { /* non-fatal — dedup prevents duplicates */ }\n\n// ── Step 3: Get user email ────────────────────────────────────────────────────\nlet userEmail = null;\ntry {\n  const userRows = await $helpers.httpRequest({\n    method:  'GET',\n    url:     SUPABASE_URL + '/rest/v1/users?id=eq.' + encodeURIComponent(userId) + '&select=email&limit=1',\n    headers: sbHeaders,\n  });\n  userEmail = Array.isArray(userRows) && userRows[0] ? userRows[0].email : null;\n} catch (e) { userEmail = null; }\n\nif (!userEmail) {\n  return [{ json: { ok: false, reason: 'no_email', scheduleId } }];\n}\n\n// ── Step 4: Build HMAC-signed confirm/skip links ──────────────────────────────\nconst confirmToken = signOrderToken(scheduleId, 'confirm');\nconst skipToken    = signOrderToken(scheduleId, 'skip');\nconst confirmUrl   = SITE_URL + '/api/orders/confirm/' + scheduleId + '?token=' + encodeURIComponent(confirmToken);\nconst skipUrl      = SITE_URL + '/api/orders/skip/'    + scheduleId + '?token=' + encodeURIComponent(skipToken);\nconst schedulesUrl = SITE_URL + '/dashboard/schedules';\n\nconst formattedDate = new Date(orderDate + 'T12:00:00Z').toLocaleDateString('en-US', {\n  weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',\n});\n\n// ── Step 5: Build retailer-specific email ────────────────────────────────────\nconst type = retailerType(retailer);\nconst { subject, htmlBody, textBody } = buildEmailContent({\n  type,\n  productName,\n  retailer,\n  formattedDate,\n  confirmUrl,\n  skipUrl,\n  schedulesUrl,\n});\n\n// ── Step 6: Send confirmation email via SendGrid ──────────────────────────────\ntry {\n  await $helpers.httpRequest({\n    method:  'POST',\n    url:     'https://api.sendgrid.com/v3/mail/send',\n    headers: {\n      'Authorization': 'Bearer ' + SENDGRID_KEY,\n      'Content-Type':  'application/json',\n    },\n    body: JSON.stringify({\n      personalizations: [{ to: [{ email: userEmail }] }],\n      from:    { email: 'orders@restox.net', name: 'Restox' },\n      subject: subject,\n      content: [\n        { type: 'text/plain', value: textBody },\n        { type: 'text/html',  value: htmlBody },\n      ],\n    }),\n  });\n} catch (e) { /* email failure is non-fatal — confirmation row already created */ }\n\n// ── Step 7: Log to notification_log ──────────────────────────────────────────\ntry {\n  await $helpers.httpRequest({\n    method:  'POST',\n    url:     SUPABASE_URL + '/rest/v1/notification_log',\n    headers: Object.assign({}, sbHeaders, { 'Prefer': 'return=minimal' }),\n    body:    JSON.stringify({\n      user_id:           userId,\n      schedule_id:       scheduleId,\n      product_name:      productName,\n      retailer_name:     retailer,\n      notification_type: 'pre_order_confirmation',\n      channel:           'email',\n      status:            'sent',\n    }),\n  });\n} catch (e) { /* non-fatal */ }\n\nreturn [{ json: { ok: true, scheduleId, userEmail, orderDate, retailerType: type } }];\n"
       },
       "id": "process-schedule",
       "name": "Process Schedule",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [920, 300],
+      "position": [
+        920,
+        300
+      ],
       "continueOnFail": true
     }
   ],
   "connections": {
     "Every Hour": {
-      "main": [[{ "node": "Get Upcoming Schedules", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get Upcoming Schedules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Upcoming Schedules": {
-      "main": [[{ "node": "Split Into Schedules", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split Into Schedules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Split Into Schedules": {
-      "main": [[{ "node": "Process Schedule", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Process Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "preorder-confirmation-v1"
+  "versionId": "preorder-confirmation-v2"
 }
