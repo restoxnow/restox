@@ -701,6 +701,9 @@ export default function ProductsPage() {
         </button>
       </div>
 
+      {/* Ad slot — Free tier only, Consumer+ see nothing */}
+      <AdSlot slot="products" format="banner" className="w-full" />
+
       {/* Search bar */}
       {!loading && products.length > 0 && (
         <div className="relative">

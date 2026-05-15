@@ -7,6 +7,7 @@ import {
   Pause, Play, Trash2, ChevronDown, AlertTriangle, Eye, X, CreditCard, PauseCircle,
 } from 'lucide-react'
 import { createSupabaseBrowserClient } from '@/lib/supabase-browser'
+import AdSlot from '@/components/dashboard/AdSlot'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -786,6 +787,9 @@ export default function SchedulesPage() {
           </p>
         </div>
       </div>
+
+      {/* Ad slot — Free tier only, Consumer+ see nothing */}
+      <AdSlot slot="schedules" format="banner" className="w-full" />
 
       {/* Filter tabs */}
       {!loading && schedules.length > 0 && (
