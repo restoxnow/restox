@@ -63,17 +63,31 @@
     return null;
   }
 
+  // Extracts UPC from a Kroger product page URL.
+  // Kroger product URLs follow the pattern: /p/[product-slug]/[13-digit-upc]
+  // e.g. https://www.kroger.com/p/coca-cola-original/0049000000343
+  function extractKrogerUPC() {
+    var parts = window.location.pathname.split('/').filter(Boolean);
+    var last  = parts[parts.length - 1] || '';
+    return /^\d{8,14}$/.test(last) ? last : null;
+  }
+
   function extractProduct() {
     if (!retailer) return {};
     var titleEl = querySelector(retailer.selectors.title);
     var priceEl = querySelector(retailer.selectors.price);
     var imageEl = querySelector(retailer.selectors.image);
+
+    // UPC — only extractable from Kroger product page URLs
+    var upc = retailer.name === 'Kroger' ? extractKrogerUPC() : null;
+
     return {
       name:          titleEl ? titleEl.textContent.trim() : null,
       price:         priceEl ? (priceEl.textContent || priceEl.getAttribute('content') || '').trim() : null,
       image_url:     imageEl ? (imageEl.src || imageEl.getAttribute('data-src') || '') : null,
       product_url:   addAffiliateTag(window.location.href),
       retailer_name: retailer.name,
+      upc:           upc,
     };
   }
 
