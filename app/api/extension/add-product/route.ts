@@ -34,7 +34,9 @@ export async function POST(req: NextRequest) {
   const { name, retailer_name } = body
   const product_url = body.product_url ? addAffiliateTag(String(body.product_url)) : undefined
   // UPC — extracted from Kroger product page URLs by the extension; max 14 digits
-  const upc = typeof body.upc === 'string' && /^\d{8,14}$/.test(body.upc) ? body.upc : null
+  const upc  = typeof body.upc  === 'string' && /^\d{8,14}$/.test(body.upc)          ? body.upc              : null
+  // ASIN — extracted from Amazon product page URLs (/dp/[ASIN]) by the extension
+  const asin = typeof body.asin === 'string' && /^[A-Z0-9]{10}$/i.test(body.asin)   ? body.asin.toUpperCase() : null
 
   if (!name || !retailer_name) {
     return NextResponse.json(
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
       product_url:           product_url ?? null,
       retailer:              retailer_name,
       upc:                   upc,
+      asin:                  asin,
       quantity:              1,
       frequency_days:        frequencyDays,
       status:                'active',

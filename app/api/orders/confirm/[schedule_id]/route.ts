@@ -5,6 +5,7 @@ import { logError } from '@/lib/log-error'
 import { verifyOrderToken } from '@/lib/order-token'
 import { decrypt } from '@/lib/encrypt'
 import { addToKrogerCart } from '@/lib/retailers/kroger-cart'
+import { buildAmazonCartUrl, isValidAsin } from '@/lib/retailers/amazon-cart'
 
 function adminClient() {
   return createClient(
@@ -56,6 +57,53 @@ async function sendKrogerCartFilledEmail(
       personalizations: [{ to: [{ email: userEmail }] }],
       from:    { email: 'orders@restox.net', name: 'Restox' },
       subject: 'Your Kroger cart is ready — complete your order',
+      content: [
+        { type: 'text/plain', value: textBody },
+        { type: 'text/html',  value: htmlBody },
+      ],
+    }),
+  }).catch(() => { /* non-fatal */ })
+}
+
+/** Sends a "complete your Amazon reorder" email with a direct Add-to-Cart deep link. */
+async function sendAmazonCartEmail(
+  userEmail:   string,
+  productName: string,
+  cartUrl:     string,
+): Promise<void> {
+  const key = process.env.SENDGRID_API_KEY
+  if (!key) return
+
+  const textBody = [
+    'Hi,',
+    '',
+    `It's time to reorder ${productName} on Amazon.`,
+    '',
+    'Click the link below to add it to your Amazon cart instantly:',
+    cartUrl,
+    '',
+    'Your affiliate link includes the Restox tag — thanks for supporting us!',
+    '',
+    '— The Restox Team',
+  ].join('\n')
+
+  const htmlBody = [
+    '<p>Hi,</p>',
+    `<p>It's time to reorder <strong>${productName}</strong> on Amazon.</p>`,
+    '<p style="margin:24px 0;">',
+    `  <a href="${cartUrl}" style="display:inline-block;padding:12px 24px;background:#F47C20;color:white;border-radius:8px;text-decoration:none;font-weight:bold;">Add to Amazon Cart &#8594;</a>`,
+    '</p>',
+    '<p style="color:#9ca3af;font-size:13px;">Your affiliate link includes the Restox tag &mdash; thanks for supporting us!</p>',
+    '<p>&mdash; The Restox Team</p>',
+  ].join('\n')
+
+  await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: userEmail }] }],
+      from:    { email: 'orders@restox.net', name: 'Restox' },
+      subject: 'Complete your Amazon reorder — cart link inside',
       content: [
         { type: 'text/plain', value: textBody },
         { type: 'text/html',  value: htmlBody },
@@ -235,7 +283,7 @@ export async function POST(
   // Two-query pattern: verify ownership separately
   const { data: schedule } = await admin
     .from('purchase_schedules')
-    .select('id, user_id, product_name, retailer, product_url, upc')
+    .select('id, user_id, product_name, retailer, product_url, upc, asin')
     .eq('id', schedule_id)
     .single()
 
@@ -279,7 +327,38 @@ export async function POST(
     }
   }
 
-  // ── Non-Kroger: mark confirmed ─────────────────────────────────────────────
+  // ── Amazon: build Add-to-Cart deep link and email ─────────────────────────
+  if (schedule.retailer?.toLowerCase() === 'amazon' && isValidAsin(schedule.asin)) {
+    try {
+      const cartUrl = buildAmazonCartUrl(schedule.asin)
+
+      await admin
+        .from('order_confirmations')
+        .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), notes: 'Amazon Add-to-Cart link sent' })
+        .eq('id', confirmation.id)
+
+      const { data: userRow } = await admin
+        .from('users')
+        .select('email')
+        .eq('id', user.id)
+        .single()
+
+      if (userRow?.email) {
+        await sendAmazonCartEmail(userRow.email as string, schedule.product_name ?? 'your product', cartUrl)
+      }
+
+      return NextResponse.json({
+        ok:      true,
+        cartUrl,
+        message: 'Amazon Add-to-Cart link sent to your email',
+      })
+    } catch (err) {
+      await logError({ route: `/api/orders/confirm/${schedule_id}`, error: err, userId: user.id })
+      // Fall through to generic confirm
+    }
+  }
+
+  // ── Non-Kroger / non-Amazon: mark confirmed ───────────────────────────────
   const { error } = await admin
     .from('order_confirmations')
     .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
@@ -358,7 +437,7 @@ export async function GET(
   // Fetch schedule for Kroger cart fill
   const { data: schedule } = await admin
     .from('purchase_schedules')
-    .select('product_name, retailer, product_url, upc')
+    .select('product_name, retailer, product_url, upc, asin')
     .eq('id', schedule_id)
     .single()
 
@@ -401,7 +480,41 @@ export async function GET(
     }
   }
 
-  // ── Non-Kroger: mark confirmed ───────────────────────────────────────────
+  // ── Amazon: build Add-to-Cart deep link and email ──────────────────────
+  if (schedule?.retailer?.toLowerCase() === 'amazon' && isValidAsin(schedule.asin)) {
+    try {
+      const cartUrl = buildAmazonCartUrl(schedule.asin)
+
+      await admin
+        .from('order_confirmations')
+        .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), notes: 'Amazon Add-to-Cart link sent' })
+        .eq('id', conf.id)
+
+      const { data: userRow } = await admin
+        .from('users')
+        .select('email')
+        .eq('id', conf.user_id)
+        .single()
+
+      if (userRow?.email) {
+        await sendAmazonCartEmail(userRow.email as string, schedule.product_name ?? 'your product', cartUrl)
+      }
+
+      return new NextResponse(
+        HTML(
+          'Amazon cart link sent!',
+          '📦',
+          '<p>We\'ve emailed you a direct link to add this item to your Amazon cart. Check your inbox!</p>' +
+          `<p style="margin-bottom:24px;"><a href="${cartUrl}" style="display:inline-block;padding:10px 24px;background:#F47C20;color:white;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;">Add to Amazon Cart &rarr;</a></p>`,
+        ),
+        { status: 200, headers: { 'Content-Type': 'text/html' } }
+      )
+    } catch {
+      // Fall through to generic confirm
+    }
+  }
+
+  // ── Non-Kroger / non-Amazon: mark confirmed ─────────────────────────────
   await admin
     .from('order_confirmations')
     .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })

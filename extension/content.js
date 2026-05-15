@@ -72,6 +72,15 @@
     return /^\d{8,14}$/.test(last) ? last : null;
   }
 
+  // Extracts ASIN from an Amazon product page URL.
+  // Amazon product URLs follow the pattern: /dp/[ASIN] or /gp/product/[ASIN]
+  // e.g. https://www.amazon.com/dp/B07ZPKN6YR/ref=...
+  // ASIN is always exactly 10 uppercase alphanumeric characters.
+  function extractAmazonASIN() {
+    var match = window.location.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+    return match ? match[1].toUpperCase() : null;
+  }
+
   function extractProduct() {
     if (!retailer) return {};
     var titleEl = querySelector(retailer.selectors.title);
@@ -79,7 +88,9 @@
     var imageEl = querySelector(retailer.selectors.image);
 
     // UPC — only extractable from Kroger product page URLs
-    var upc = retailer.name === 'Kroger' ? extractKrogerUPC() : null;
+    var upc  = retailer.name === 'Kroger' ? extractKrogerUPC()  : null;
+    // ASIN — extracted from Amazon product page URLs (/dp/[ASIN])
+    var asin = retailer.name === 'Amazon' ? extractAmazonASIN() : null;
 
     return {
       name:          titleEl ? titleEl.textContent.trim() : null,
@@ -88,6 +99,7 @@
       product_url:   addAffiliateTag(window.location.href),
       retailer_name: retailer.name,
       upc:           upc,
+      asin:          asin,
     };
   }
 

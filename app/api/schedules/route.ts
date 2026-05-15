@@ -12,7 +12,7 @@ function adminClient() {
 }
 
 const ALLOWED_FIELDS = new Set([
-  'product_id', 'product_name', 'retailer', 'product_url', 'upc',
+  'product_id', 'product_name', 'retailer', 'product_url', 'upc', 'asin',
   'frequency_days', 'status', 'ai_managed', 'notification_timing',
   'confirmation_required', 'notification_channel',
 ])
