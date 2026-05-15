@@ -6,6 +6,7 @@ import { verifyOrderToken } from '@/lib/order-token'
 import { decrypt } from '@/lib/encrypt'
 import { addToKrogerCart } from '@/lib/retailers/kroger-cart'
 import { buildAmazonCartUrl, isValidAsin } from '@/lib/retailers/amazon-cart'
+import { resolveProductUrl } from '@/lib/retailers/retailer-urls'
 
 function adminClient() {
   return createClient(
@@ -150,6 +151,70 @@ async function sendKrogerFallbackEmail(
       personalizations: [{ to: [{ email: userEmail }] }],
       from:    { email: 'orders@restox.net', name: 'Restox' },
       subject: 'Action needed: add your Kroger item to cart',
+      content: [
+        { type: 'text/plain', value: textBody },
+        { type: 'text/html',  value: htmlBody },
+      ],
+    }),
+  }).catch(() => { /* non-fatal */ })
+}
+
+/**
+ * Generic "time to reorder" reminder email for all non-Kroger, non-Amazon
+ * retailers. Links directly to the product page if available, or falls back
+ * to the retailer homepage.
+ */
+async function sendGenericReminderEmail(
+  userEmail:    string,
+  productName:  string,
+  retailerName: string,
+  shopUrl:      string,
+): Promise<void> {
+  const key = process.env.SENDGRID_API_KEY
+  if (!key) return
+
+  const hasProductPage = shopUrl.includes('/') && !['walmart.com','target.com','costco.com',
+    'homedepot.com','sephora.com','chewy.com','ulta.com','walgreens.com','cvs.com',
+    'safeway.com','albertsons.com','publix.com','wholefoodsmarket.com','samsclub.com',
+    'petco.com','petsmart.com','riteaid.com','dollargeneral.com','instacart.com',
+    'shipt.com','iherb.com','vitacost.com','thrivemarket.com',
+  ].some(h => new URL(shopUrl).hostname.endsWith(h) && new URL(shopUrl).pathname === '/')
+
+  const ctaLabel  = hasProductPage ? 'View product and reorder →' : `Shop ${retailerName} →`
+  const bodyNote  = hasProductPage
+    ? 'This link takes you directly to the product page. Add it to your cart and checkout to complete your order.'
+    : `We don't have a direct product link on file — click below to visit ${retailerName} and search for your item.`
+
+  const textBody = [
+    'Hi,',
+    '',
+    `Your scheduled reorder for ${productName} from ${retailerName} is coming up.`,
+    '',
+    ctaLabel,
+    shopUrl,
+    '',
+    bodyNote,
+    '',
+    '— The Restox Team',
+  ].join('\n')
+
+  const htmlBody = [
+    '<p>Hi,</p>',
+    `<p>Your scheduled reorder for <strong>${productName}</strong> from <strong>${retailerName}</strong> is coming up.</p>`,
+    '<p style="margin:24px 0;">',
+    `  <a href="${shopUrl}" style="display:inline-block;padding:12px 24px;background:#F47C20;color:white;border-radius:8px;text-decoration:none;font-weight:bold;">${ctaLabel}</a>`,
+    '</p>',
+    `<p style="color:#9ca3af;font-size:13px;">${bodyNote}</p>`,
+    '<p>&mdash; The Restox Team</p>',
+  ].join('\n')
+
+  await fetch('https://api.sendgrid.com/v3/mail/send', {
+    method:  'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: userEmail }] }],
+      from:    { email: 'orders@restox.net', name: 'Restox' },
+      subject: `Time to reorder ${productName} from ${retailerName}`,
       content: [
         { type: 'text/plain', value: textBody },
         { type: 'text/html',  value: htmlBody },
@@ -358,18 +423,45 @@ export async function POST(
     }
   }
 
-  // ── Non-Kroger / non-Amazon: mark confirmed ───────────────────────────────
-  const { error } = await admin
-    .from('order_confirmations')
-    .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
-    .eq('id', confirmation.id)
+  // ── Generic: smart product-page reminder email ────────────────────────────
+  {
+    const shopUrl = resolveProductUrl(schedule.product_url, schedule.retailer)
+    const retailerName = schedule.retailer ?? 'your retailer'
+    const productName  = schedule.product_name ?? 'your product'
+    const notes = shopUrl
+      ? `Reminder email sent — product link: ${shopUrl}`
+      : 'Reminder email sent — no product URL on record'
 
-  if (error) {
-    await logError({ route: `/api/orders/confirm/${schedule_id}`, error, userId: user.id })
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    const { error } = await admin
+      .from('order_confirmations')
+      .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), notes })
+      .eq('id', confirmation.id)
+
+    if (error) {
+      await logError({ route: `/api/orders/confirm/${schedule_id}`, error, userId: user.id })
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    if (shopUrl) {
+      const { data: userRow } = await admin
+        .from('users')
+        .select('email')
+        .eq('id', user.id)
+        .single()
+
+      if (userRow?.email) {
+        await sendGenericReminderEmail(userRow.email as string, productName, retailerName, shopUrl)
+      }
+    }
+
+    return NextResponse.json({
+      ok:      true,
+      shopUrl,
+      message: shopUrl
+        ? `Reminder email sent with link to ${retailerName}`
+        : 'Order confirmed — no product URL available',
+    })
   }
-
-  return NextResponse.json({ ok: true, message: 'Order confirmed — placement coming soon' })
 }
 
 // ---------------------------------------------------------------------------
@@ -514,14 +606,47 @@ export async function GET(
     }
   }
 
-  // ── Non-Kroger / non-Amazon: mark confirmed ─────────────────────────────
-  await admin
-    .from('order_confirmations')
-    .update({ status: 'confirmed', confirmed_at: new Date().toISOString() })
-    .eq('id', conf.id)
+  // ── Generic: smart product-page reminder email ──────────────────────────
+  {
+    const shopUrl      = resolveProductUrl(schedule?.product_url, schedule?.retailer)
+    const retailerName = schedule?.retailer     ?? 'your retailer'
+    const productName  = schedule?.product_name ?? 'your product'
+    const notes = shopUrl
+      ? `Reminder email sent — product link: ${shopUrl}`
+      : 'Reminder email sent — no product URL on record'
 
-  return new NextResponse(
-    HTML('Order confirmed!', '✅', '<p>Your order has been confirmed. We\'ll place it automatically on the scheduled date.</p>'),
-    { status: 200, headers: { 'Content-Type': 'text/html' } }
-  )
+    await admin
+      .from('order_confirmations')
+      .update({ status: 'confirmed', confirmed_at: new Date().toISOString(), notes })
+      .eq('id', conf.id)
+
+    if (shopUrl) {
+      const { data: userRow } = await admin
+        .from('users')
+        .select('email')
+        .eq('id', conf.user_id)
+        .single()
+
+      if (userRow?.email) {
+        await sendGenericReminderEmail(userRow.email as string, productName, retailerName, shopUrl)
+      }
+    }
+
+    if (shopUrl) {
+      return new NextResponse(
+        HTML(
+          'Order confirmed!',
+          '✅',
+          `<p>Your reorder for <strong>${productName}</strong> from <strong>${retailerName}</strong> has been confirmed. We've sent you a link to reorder directly.</p>` +
+          `<p style="margin-bottom:24px;"><a href="${shopUrl}" style="display:inline-block;padding:10px 24px;background:#F47C20;color:white;border-radius:10px;text-decoration:none;font-size:14px;font-weight:600;">View product and reorder &rarr;</a></p>`,
+        ),
+        { status: 200, headers: { 'Content-Type': 'text/html' } }
+      )
+    }
+
+    return new NextResponse(
+      HTML('Order confirmed!', '✅', `<p>Your reorder for <strong>${productName}</strong> from <strong>${retailerName}</strong> has been confirmed.</p>`),
+      { status: 200, headers: { 'Content-Type': 'text/html' } }
+    )
+  }
 }
