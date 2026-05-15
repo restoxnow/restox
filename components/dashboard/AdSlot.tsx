@@ -15,6 +15,8 @@ const AD_CLIENT = 'ca-pub-5385038600205472'
 const SLOT_IDS: Record<string, string> = {
   'dashboard':  '9606669535',
   'ai-preview': '7135584712',
+  'schedules':  '1979689866',
+  'products':   '5013652552',
 }
 
 type AdFormat = 'banner' | 'rectangle' | 'video'
